@@ -6,3 +6,15 @@
 //
 
 
+import SwiftUI
+
+
+struct LogIn: View {
+    var body: some View {
+        Text("CineMatch")
+    }
+}
+
+#Preview {
+    LogIn()
+}
