@@ -16,3 +16,6 @@ xcuserdata/
 # Secrets / local config
 *.xcconfig.local
 Secrets.plist
+
+# Personlige Swift-lektioner (holdes lokalt, ikke i git)
+CineMatch/Learning/

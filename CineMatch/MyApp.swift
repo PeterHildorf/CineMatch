@@ -1,9 +1,11 @@
 import SwiftUI
 
 @main struct MyApp: App {
+    private let container = AppContainer.live()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView(container: container)
         }
     }
 }
