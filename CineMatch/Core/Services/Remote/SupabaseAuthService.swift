@@ -8,7 +8,7 @@
 import Foundation
 import Supabase
 
-/// Den rigtige login-service: Apple-token → Supabase-session.
+/// Den rigtige login-service: e-mail + adgangskode via Supabase Auth.
 /// supabase-swift gemmer selv sessionen sikkert i Keychain og fornyer den automatisk.
 final class SupabaseAuthService: AuthService {
     private let client: SupabaseClient
@@ -17,32 +17,40 @@ final class SupabaseAuthService: AuthService {
         self.client = client
     }
 
+    func signUp(with credential: AuthCredential) async throws -> SignUpResult {
+        switch credential {
+        case let .email(address, password):
+            do {
+                let response = try await client.auth.signUp(email: address, password: password)
+                // Er "Confirm email" slået fra i Supabase, får vi en session med det samme.
+                if let session = response.session {
+                    return .signedIn(makeUserSession(from: session.user))
+                }
+                return .confirmationRequired
+            } catch {
+                throw Self.mapError(error)
+            }
+        }
+    }
+
     func signIn(with credential: AuthCredential) async throws -> UserSession {
         switch credential {
-        case let .apple(idToken, rawNonce, fullName, email):
-            // Supabase verificerer Apples token og opretter/finder brugeren.
-            let session = try await client.auth.signInWithIdToken(
-                credentials: OpenIDConnectCredentials(
-                    provider: .apple,
-                    idToken: idToken,
-                    nonce: rawNonce
-                )
-            )
-
-            // Apple sender kun navnet første gang – gem det med det samme på Supabase-brugeren.
-            // `try?`: hvis det fejler, er brugeren stadig logget ind, vi mister bare navnet.
-            if let fullName {
-                _ = try? await client.auth.update(
-                    user: UserAttributes(data: ["full_name": .string(fullName)])
-                )
+        case let .email(address, password):
+            do {
+                let session = try await client.auth.signIn(email: address, password: password)
+                return makeUserSession(from: session.user)
+            } catch {
+                throw Self.mapError(error)
             }
-
-            return makeUserSession(from: session.user, fallbackName: fullName, fallbackEmail: email)
         }
     }
 
     func signOut() async throws {
-        try await client.auth.signOut()
+        do {
+            try await client.auth.signOut()
+        } catch {
+            throw Self.mapError(error)
+        }
     }
 
     func currentSession() async -> UserSession? {
@@ -60,20 +68,36 @@ final class SupabaseAuthService: AuthService {
         }
     }
 
-    // MARK: - Hjælper
+    // MARK: - Hjælpere
 
     /// Oversætter Supabase's `User` til vores egen domænemodel,
     /// så resten af appen ikke kender til Supabase.
-    private func makeUserSession(
-        from user: User,
-        fallbackName: String? = nil,
-        fallbackEmail: String? = nil
-    ) -> UserSession {
+    private func makeUserSession(from user: User) -> UserSession {
         UserSession(
             // Små bogstaver, så det matcher Postgres' uuid-tekst.
             userID: user.id.uuidString.lowercased(),
-            displayName: user.userMetadata["full_name"]?.stringValue ?? fallbackName,
-            email: user.email ?? fallbackEmail
+            email: user.email
         )
+    }
+
+    /// Oversætter Supabase-fejl til vores egne `AuthServiceError`.
+    private static func mapError(_ error: Error) -> AuthServiceError {
+        if error is URLError { return .network }
+        guard let authError = error as? AuthError else { return .unknown }
+
+        switch authError.errorCode {
+        case .invalidCredentials:
+            return .invalidCredentials
+        case .userAlreadyExists, .emailExists:
+            return .emailAlreadyInUse
+        case .weakPassword:
+            return .weakPassword
+        case .emailNotConfirmed:
+            return .emailNotConfirmed
+        case .overEmailSendRateLimit, .overRequestRateLimit:
+            return .tooManyRequests
+        default:
+            return .unknown
+        }
     }
 }

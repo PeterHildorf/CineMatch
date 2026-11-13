@@ -9,12 +9,11 @@ import SwiftUI
 struct RootView: View {
     // Ingen startværdi her: @State er en macro i iOS 27, så den sættes kun i init.
     @State private var authViewModel: AuthViewModel
+    private let container: AppContainer
 
     init(container: AppContainer) {
-        authViewModel = AuthViewModel(
-            authService: container.authService,
-            allowsTestSignIn: container.usesMockServices
-        )
+        self.container = container
+        authViewModel = AuthViewModel(authService: container.authService)
     }
 
     var body: some View {
@@ -25,7 +24,7 @@ struct RootView: View {
             case .signedOut:
                 SignInView(viewModel: authViewModel)
             case .signedIn(let session):
-                SignedInPlaceholderView(session: session) {
+                MainTabView(container: container, session: session) {
                     Task { await authViewModel.signOut() }
                 }
             }
@@ -33,24 +32,6 @@ struct RootView: View {
         .task {
             await authViewModel.restoreSession()
         }
-    }
-}
-
-/// Midlertidig hovedskærm, indtil onboarding og anbefalinger er bygget (Fase 3–4).
-private struct SignedInPlaceholderView: View {
-    let session: UserSession
-    let onSignOut: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Velkommen\(session.displayName.map { ", \($0)" } ?? "")!")
-                .font(.title)
-            Text("Bruger-id: \(session.userID)")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Button("Log ud", role: .destructive, action: onSignOut)
-        }
-        .padding()
     }
 }
 

@@ -1,0 +1,63 @@
+{
+  "modelVersion": "mf-bdc4066d1a73",
+  "sourceMovieCount": 9021,
+  "exportedMovieCount": 9014,
+  "excludedMovieCount": 7,
+  "duplicateTmdbGroupCount": 2,
+  "excludedMovies": [
+    {
+      "movieLensId": 2851,
+      "title": "Saturn 3 (1980)",
+      "reason": "missing_tmdb_id"
+    },
+    {
+      "movieLensId": 6003,
+      "title": "Confessions of a Dangerous Mind (2002)",
+      "tmdbId": 4912,
+      "reason": "duplicate_tmdb_id"
+    },
+    {
+      "movieLensId": 7842,
+      "title": "Dune (2000)",
+      "reason": "missing_tmdb_id"
+    },
+    {
+      "movieLensId": 26587,
+      "title": "Decalogue, The (Dekalog) (1989)",
+      "reason": "missing_tmdb_id"
+    },
+    {
+      "movieLensId": 114342,
+      "title": "Force Majeure (Turist) (2014)",
+      "tmdbId": 265189,
+      "reason": "duplicate_tmdb_id"
+    },
+    {
+      "movieLensId": 144606,
+      "title": "Confessions of a Dangerous Mind (2002)",
+      "tmdbId": 4912,
+      "reason": "duplicate_tmdb_id"
+    },
+    {
+      "movieLensId": 175813,
+      "title": "Force Majeure (2014)",
+      "tmdbId": 265189,
+      "reason": "duplicate_tmdb_id"
+    }
+  ],
+  "cataloguePolicy": "Exclude missing/invalid TMDB IDs and all members of duplicate TMDB groups.",
+  "source": {
+    "checkpointSha256": "bdc4066d1a73e99b85449af7fea0a54d480f91f76b75ba01d7c602fc95b5888e",
+    "catalogueSha256": "2c9fc2f9cdb9bbbd855e635931dcec63d442f229daac5a0b60fab75b49b377fb",
+    "linksSha256": "ef17da7710be76f7d510d5768d1b61826e3af4bf57812b9ca377e4c912123b22"
+  },
+  "limitations": [
+    "TMDB identity and movie-only status have not been verified.",
+    "Not compatible with Anton's neighbour JSON or its formatVersion.",
+    "Requires actual 0.5–5 half-star ratings and a native fold-in implementation.",
+    "Raw scores are not match percentages; no mood tags or feature explanations are included.",
+    "No-rating inference is a nonpersonalized movie prior; require ratings in the app."
+  ],
+  "modelJsonSha256": "753385df4a9623449a00fb8c76037cea17481804adabc6b15676a0f082d68cd7",
+  "modelJsonBytes": 4249699
+}

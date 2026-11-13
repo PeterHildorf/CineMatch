@@ -1,0 +1,446 @@
+[
+  {
+    "id": 356,
+    "tmdbId": 13,
+    "title": "Forrest Gump",
+    "year": 1994,
+    "genres": [
+      "Comedy",
+      "Drama",
+      "Romance",
+      "War"
+    ]
+  },
+  {
+    "id": 318,
+    "tmdbId": 278,
+    "title": "The Shawshank Redemption",
+    "year": 1994,
+    "genres": [
+      "Crime",
+      "Drama"
+    ]
+  },
+  {
+    "id": 296,
+    "tmdbId": 680,
+    "title": "Pulp Fiction",
+    "year": 1994,
+    "genres": [
+      "Comedy",
+      "Crime",
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 593,
+    "tmdbId": 274,
+    "title": "The Silence of the Lambs",
+    "year": 1991,
+    "genres": [
+      "Crime",
+      "Horror",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 2571,
+    "tmdbId": 603,
+    "title": "The Matrix",
+    "year": 1999,
+    "genres": [
+      "Action",
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 260,
+    "tmdbId": 11,
+    "title": "Star Wars: A New Hope",
+    "year": 1977,
+    "genres": [
+      "Action",
+      "Adventure",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 480,
+    "tmdbId": 329,
+    "title": "Jurassic Park",
+    "year": 1993,
+    "genres": [
+      "Action",
+      "Adventure",
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 527,
+    "tmdbId": 424,
+    "title": "Schindler's List",
+    "year": 1993,
+    "genres": [
+      "Drama",
+      "War"
+    ]
+  },
+  {
+    "id": 2959,
+    "tmdbId": 550,
+    "title": "Fight Club",
+    "year": 1999,
+    "genres": [
+      "Action",
+      "Crime",
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 1,
+    "tmdbId": 862,
+    "title": "Toy Story",
+    "year": 1995,
+    "genres": [
+      "Adventure",
+      "Animation",
+      "Children",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 47,
+    "tmdbId": 807,
+    "title": "Se7en",
+    "year": 1995,
+    "genres": [
+      "Mystery",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 4993,
+    "tmdbId": 120,
+    "title": "The Lord of the Rings: The Fellowship of the Ring",
+    "year": 2001,
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 858,
+    "tmdbId": 238,
+    "title": "The Godfather",
+    "year": 1972,
+    "genres": [
+      "Crime",
+      "Drama"
+    ]
+  },
+  {
+    "id": 2028,
+    "tmdbId": 857,
+    "title": "Saving Private Ryan",
+    "year": 1998,
+    "genres": [
+      "Action",
+      "Drama",
+      "War"
+    ]
+  },
+  {
+    "id": 588,
+    "tmdbId": 812,
+    "title": "Aladdin",
+    "year": 1992,
+    "genres": [
+      "Adventure",
+      "Animation",
+      "Children",
+      "Comedy",
+      "Musical"
+    ]
+  },
+  {
+    "id": 608,
+    "tmdbId": 275,
+    "title": "Fargo",
+    "year": 1996,
+    "genres": [
+      "Comedy",
+      "Crime",
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 2762,
+    "tmdbId": 745,
+    "title": "The Sixth Sense",
+    "year": 1999,
+    "genres": [
+      "Drama",
+      "Horror",
+      "Mystery"
+    ]
+  },
+  {
+    "id": 1270,
+    "tmdbId": 105,
+    "title": "Back to the Future",
+    "year": 1985,
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 3578,
+    "tmdbId": 98,
+    "title": "Gladiator",
+    "year": 2000,
+    "genres": [
+      "Action",
+      "Adventure",
+      "Drama"
+    ]
+  },
+  {
+    "id": 4306,
+    "tmdbId": 808,
+    "title": "Shrek",
+    "year": 2001,
+    "genres": [
+      "Adventure",
+      "Animation",
+      "Children",
+      "Comedy",
+      "Fantasy",
+      "Romance"
+    ]
+  },
+  {
+    "id": 1580,
+    "tmdbId": 607,
+    "title": "Men in Black",
+    "year": 1997,
+    "genres": [
+      "Action",
+      "Comedy",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 4226,
+    "tmdbId": 77,
+    "title": "Memento",
+    "year": 2000,
+    "genres": [
+      "Mystery",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 58559,
+    "tmdbId": 155,
+    "title": "The Dark Knight",
+    "year": 2008,
+    "genres": [
+      "Action",
+      "Crime",
+      "Drama"
+    ]
+  },
+  {
+    "id": 6539,
+    "tmdbId": 22,
+    "title": "Pirates of the Caribbean: The Curse of the Black Pearl",
+    "year": 2003,
+    "genres": [
+      "Action",
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 1214,
+    "tmdbId": 348,
+    "title": "Alien",
+    "year": 1979,
+    "genres": [
+      "Horror",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 1036,
+    "tmdbId": 562,
+    "title": "Die Hard",
+    "year": 1988,
+    "genres": [
+      "Action",
+      "Crime",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 1265,
+    "tmdbId": 137,
+    "title": "Groundhog Day",
+    "year": 1993,
+    "genres": [
+      "Comedy",
+      "Fantasy",
+      "Romance"
+    ]
+  },
+  {
+    "id": 79132,
+    "tmdbId": 27205,
+    "title": "Inception",
+    "year": 2010,
+    "genres": [
+      "Action",
+      "Crime",
+      "Drama",
+      "Mystery",
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "id": 1704,
+    "tmdbId": 489,
+    "title": "Good Will Hunting",
+    "year": 1997,
+    "genres": [
+      "Drama",
+      "Romance"
+    ]
+  },
+  {
+    "id": 6377,
+    "tmdbId": 12,
+    "title": "Finding Nemo",
+    "year": 2003,
+    "genres": [
+      "Adventure",
+      "Animation",
+      "Children",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1721,
+    "tmdbId": 597,
+    "title": "Titanic",
+    "year": 1997,
+    "genres": [
+      "Drama",
+      "Romance"
+    ]
+  },
+  {
+    "id": 1136,
+    "tmdbId": 762,
+    "title": "Monty Python and the Holy Grail",
+    "year": 1975,
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 597,
+    "tmdbId": 114,
+    "title": "Pretty Woman",
+    "year": 1990,
+    "genres": [
+      "Comedy",
+      "Romance"
+    ]
+  },
+  {
+    "id": 7361,
+    "tmdbId": 38,
+    "title": "Eternal Sunshine of the Spotless Mind",
+    "year": 2004,
+    "genres": [
+      "Drama",
+      "Romance",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 1682,
+    "tmdbId": 37165,
+    "title": "The Truman Show",
+    "year": 1998,
+    "genres": [
+      "Comedy",
+      "Drama",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "id": 4973,
+    "tmdbId": 194,
+    "title": "Amélie",
+    "year": 2001,
+    "genres": [
+      "Comedy",
+      "Romance"
+    ]
+  },
+  {
+    "id": 1258,
+    "tmdbId": 694,
+    "title": "The Shining",
+    "year": 1980,
+    "genres": [
+      "Horror"
+    ]
+  },
+  {
+    "id": 1732,
+    "tmdbId": 115,
+    "title": "The Big Lebowski",
+    "year": 1998,
+    "genres": [
+      "Comedy",
+      "Crime"
+    ]
+  },
+  {
+    "id": 4896,
+    "tmdbId": 671,
+    "title": "Harry Potter and the Philosopher's Stone",
+    "year": 2001,
+    "genres": [
+      "Adventure",
+      "Children",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 68954,
+    "tmdbId": 14160,
+    "title": "Up",
+    "year": 2009,
+    "genres": [
+      "Adventure",
+      "Animation",
+      "Children",
+      "Drama"
+    ]
+  }
+]

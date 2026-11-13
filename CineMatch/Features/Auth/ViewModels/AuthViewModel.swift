@@ -3,7 +3,6 @@
 //  CineMatch
 //
 
-import AuthenticationServices
 import Foundation
 import Observation
 
@@ -16,20 +15,43 @@ final class AuthViewModel {
         case signedIn(UserSession)
     }
 
+    /// Om formularen skal logge ind eller oprette en ny konto.
+    enum Mode {
+        case signIn
+        case signUp
+    }
+
+    /// Supabase kræver som standard mindst 6 tegn.
+    static let minimumPasswordLength = 6
+
     private(set) var state: State = .loading
     private(set) var isWorking = false
-    var errorMessage: String?
 
-    /// Viser "Log ind som testbruger"-knappen. Kun sand, når vi kører med MockAuthService.
-    let allowsTestSignIn: Bool
+    // Formularens felter – bindes direkte til TextField/SecureField i viewet.
+    var mode: Mode = .signIn
+    var email = ""
+    var password = ""
+
+    /// Rød besked når noget går galt.
+    var errorMessage: String?
+    /// Neutral besked, fx "Tjek din e-mail".
+    var infoMessage: String?
 
     private let authService: any AuthService
-    /// Den rå nonce for det igangværende Apple-login. Skal sendes videre til Supabase.
-    private var currentRawNonce: String?
 
-    init(authService: any AuthService, allowsTestSignIn: Bool = false) {
+    init(authService: any AuthService) {
         self.authService = authService
-        self.allowsTestSignIn = allowsTestSignIn
+    }
+
+    /// Knappen er kun aktiv, når felterne ser rimelige ud.
+    var canSubmit: Bool {
+        !isWorking
+            && trimmedEmail.contains("@")
+            && password.count >= Self.minimumPasswordLength
+    }
+
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Opstart
@@ -43,63 +65,43 @@ final class AuthViewModel {
         }
     }
 
-    // MARK: - Sign in with Apple
+    // MARK: - Formular
 
-    /// Kaldes af SignInWithAppleButton lige før Apples login-ark vises.
-    func prepare(_ request: ASAuthorizationAppleIDRequest) {
-        let rawNonce = Nonce.random()
-        currentRawNonce = rawNonce
-        request.requestedScopes = [.fullName, .email]
-        request.nonce = Nonce.sha256(rawNonce)  // Apple får den hashede version
+    func toggleMode() {
+        mode = (mode == .signIn) ? .signUp : .signIn
+        errorMessage = nil
+        infoMessage = nil
     }
 
-    /// Kaldes når Apples login-ark er færdigt (succes eller fejl).
-    func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
-        switch result {
-        case .failure(let error):
-            // Brugeren trykkede "Annuller" – det er ikke en fejl, vi skal vise.
-            if let authError = error as? ASAuthorizationError, authError.code == .canceled {
-                return
-            }
-            errorMessage = "Login med Apple mislykkedes. Prøv igen."
+    /// Kaldes når brugeren trykker på knappen i formularen.
+    func submit() async {
+        guard canSubmit else { return }
 
-        case .success(let authorization):
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let tokenData = credential.identityToken,
-                  let idToken = String(data: tokenData, encoding: .utf8),
-                  let rawNonce = currentRawNonce else {
-                errorMessage = "Vi fik ikke et gyldigt svar fra Apple. Prøv igen."
-                return
-            }
-
-            await signIn(with: .apple(
-                idToken: idToken,
-                rawNonce: rawNonce,
-                fullName: Self.formattedName(credential.fullName),
-                email: credential.email
-            ))
-        }
-    }
-
-    // MARK: - Fælles login/logud
-
-    func signIn(with credential: AuthCredential) async {
         isWorking = true
         errorMessage = nil
+        infoMessage = nil
         defer { isWorking = false }  // køres uanset hvordan funktionen slutter
 
-        do {
-            let session = try await authService.signIn(with: credential)
-            state = .signedIn(session)
-        } catch {
-            errorMessage = "Kunne ikke logge ind. Tjek din internetforbindelse og prøv igen."
-        }
-        currentRawNonce = nil
-    }
+        let credential = AuthCredential.email(address: trimmedEmail, password: password)
 
-    /// Kun til udvikling: logger ind uden Apple (virker kun med MockAuthService).
-    func signInAsTestUser() async {
-        await signIn(with: .apple(idToken: "mock", rawNonce: "mock", fullName: nil, email: nil))
+        do {
+            switch mode {
+            case .signIn:
+                let session = try await authService.signIn(with: credential)
+                finishSignIn(with: session)
+
+            case .signUp:
+                switch try await authService.signUp(with: credential) {
+                case .signedIn(let session):
+                    finishSignIn(with: session)
+                case .confirmationRequired:
+                    infoMessage = "Vi har sendt en bekræftelsesmail til \(trimmedEmail). Klik på linket, og log derefter ind."
+                    mode = .signIn
+                }
+            }
+        } catch {
+            errorMessage = Self.message(for: error)
+        }
     }
 
     func signOut() async {
@@ -114,12 +116,30 @@ final class AuthViewModel {
         }
     }
 
-    // MARK: - Hjælper
+    // MARK: - Hjælpere
 
-    /// Laver "Peter Hansen" ud af Apples navnekomponenter. `nil` hvis der ikke er noget navn.
-    private static func formattedName(_ components: PersonNameComponents?) -> String? {
-        guard let components else { return nil }
-        let name = PersonNameComponentsFormatter.localizedString(from: components, style: .default)
-        return name.isEmpty ? nil : name
+    private func finishSignIn(with session: UserSession) {
+        password = ""   // gem ikke adgangskoden længere end nødvendigt
+        state = .signedIn(session)
+    }
+
+    /// Oversætter fejl til tekst, brugeren forstår.
+    private static func message(for error: Error) -> String {
+        switch error as? AuthServiceError {
+        case .invalidCredentials:
+            return "Forkert e-mail eller adgangskode."
+        case .emailAlreadyInUse:
+            return "Der findes allerede en konto med den e-mail. Prøv at logge ind."
+        case .weakPassword:
+            return "Adgangskoden er for svag. Brug mindst \(minimumPasswordLength) tegn."
+        case .emailNotConfirmed:
+            return "Du skal bekræfte din e-mail, før du kan logge ind."
+        case .tooManyRequests:
+            return "For mange forsøg. Vent lidt, og prøv igen."
+        case .network:
+            return "Ingen forbindelse. Tjek dit internet, og prøv igen."
+        case .unknown, nil:
+            return "Noget gik galt. Prøv igen."
+        }
     }
 }

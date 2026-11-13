@@ -6,8 +6,16 @@ Indsæt én prompt ad gangen. Byg og kør appen (⌘R), og commit i git, før du
 **Vigtigt:** Appen laver ikke anbefalinger. Den gemmer brugerens data i Supabase og viser
 de anbefalinger, ML-servicen har skrevet tilbage. Fase 4 kræver, at `docs/ml_contract.md` findes.
 
-> **Vil du selv skrive koden?** Så tilføj denne linje nederst i hver prompt:
-> *"Act as a mentor: explain the steps and show short examples, but let me write the code. Review what I write afterwards."*
+> **Hvem skriver koden (fra 23/10):** Claude skriver koden. Jeg (Peter) reviewer, tester og godkender.
+> Tilføj gerne denne linje nederst i hver prompt:
+> *"Write the code with short Danish comments explaining the non-obvious parts."*
+>
+> **Ændringer siden prompts blev skrevet:**
+> - Login er e-mail + adgangskode i Supabase, ikke Sign in with Apple (Fase 2 er færdig).
+> - Filmdata kommer fra MovieLens (`ml-latest-small`). ID'er er MovieLens `movieId` (Int), ikke TMDB-strenge. Kun film, ingen serier endnu.
+> - Arkitektur "variant A": ML-servicen er Python FastAPI med `POST /recommend`, og den skriver top 5 til `recommendations`.
+> - **(23/10) Al tekst i appen er på engelsk.**
+> - **(23/10) Modellen er Antons content-based model.** Den tager en liste af film, brugeren kan lide. Onboarding bruger derfor **likes** ("Pick movies you love") i stedet for 1–5 stjerner, og `taste_signals` (`like` / `dislike`) erstatter `ratings`. Se `docs/ml_contract.md`.
 
 ---
 
@@ -62,7 +70,7 @@ Confirm the project builds.
 
 ---
 
-## Fase 2 – Login (Sign in with Apple → Supabase)
+## Fase 2 – Login (Sign in with Apple → Supabase) — ✅ færdig, men bygget med e-mail + adgangskode
 
 ```
 Phase 2: Authentication.
@@ -89,26 +97,29 @@ Design AuthService so email/password could be added later without touching other
 
 ## Fase 3 – Onboarding og lagring i Supabase
 
+> **(23/10)** Trin 2 er nu "pick favorites" (likes) i stedet for at bedømme titler, og tabellen hedder `taste_signals` i stedet for `ratings`. Se `docs/ml_contract.md`.
+
 ```
 Phase 3: Onboarding and saving user data to Supabase.
 
-First, propose the SQL for the tables profiles, ratings and preferences (with Row Level Security:
+First, propose the SQL for the tables profiles, taste_signals and preferences (with Row Level Security:
 users only read/write their own rows) as a file for supabase/migrations/.
 Wait for my approval before writing any Swift code that depends on the schema.
 
 Then build:
-- TasteProfileStore protocol + SupabaseTasteProfileStore (DTOs mapped to domain models
-  inside the service) + MockTasteProfileStore.
+- TasteSignalService protocol + SupabaseTasteSignalService (DTOs mapped to domain models
+  inside the service) + MockTasteSignalService.
 - Features/Onboarding:
-  1. Intro screens explaining what CineMatch does.
-  2. Rate ~12–15 titles from MovieDataService.
-  3. Quick preference questions (genres, tone, pace, movies vs. shows).
-  4. Choose streaming subscriptions.
-  5. Summary screen: "Your taste profile" in plain language, based on the user's answers.
-- All onboarding UIs emit TasteSignal values; OnboardingViewModel collects them and saves
-  them through TasteProfileStore. No scoring or ML logic in the app.
-- RootView routing: signed in without onboarding data → Onboarding; with data → main view.
-- Unit tests for OnboardingViewModel with MockTasteProfileStore.
+  1. Intro screens explaining what CineMatch does ("Pick movies you love – we'll find more like them").
+  2. Pick favorites: a poster grid where the user taps movies they love (min 5, max 25),
+     plus a search field over the movies table. Optional "Not for me" marks a dislike.
+  3. Summary screen: "Your taste" showing the picked movies and recurring genres (display only).
+  4. (Later) Choose streaming subscriptions.
+- All onboarding UIs emit TasteSignal values (.like / .dislike); OnboardingViewModel collects them and saves
+  them through TasteSignalService. No scoring or ML logic in the app.
+- All UI text in English.
+- RootView routing: signed in without likes → Onboarding; with likes → main view.
+- Unit tests for OnboardingViewModel with MockTasteSignalService.
 ```
 
 ---
@@ -130,17 +141,16 @@ Build:
 - Features/Recommendations:
   - "What do you want to see today?" context picker (mood, time available, movie vs. show,
     alone/with others). Saving a new context triggers a recompute.
-  - List of 5 cards: poster placeholder, title, year, reason, best provider badge.
-  - Detail view with overview and all providers.
+  - List of 5 cards: poster placeholder, title, year, match score, reason, best provider badge.
+  - Detail view with overview, "why it matches" bars (from explanation) and all providers.
   - Clear loading, empty ("your recommendations are being prepared") and error states,
     because the ML service can be slow or offline.
-- ReasonFormatter in Core/Shared: turns reason data from the model (reason_title_ids,
-  reason_tags) into a short readable sentence. Keep it separate and testable.
+- The ML service delivers reason as finished English text. Show it as-is.
 - StreamingAvailabilityService: best-fit provider based on the user's subscriptions
   (subscribed first; otherwise show where it's available and mark "not in your subscriptions").
-- Leave extension points (not implemented) for: thumbs up/down feedback, "Surprise me",
-  watchlist, already-watched exclusion.
-- Unit tests for ReasonFormatter, best-provider selection and the RecommendationsViewModel
+- Leave extension points (not implemented) for: thumbs up/down feedback (taste_signals with
+  source = 'feedback'), "Surprise me", watchlist, already-watched exclusion.
+- Unit tests for best-provider selection and the RecommendationsViewModel
   (with MockRecommendationService, including error and empty states).
 
 Do NOT implement any scoring or recommendation logic in the app.
@@ -154,9 +164,9 @@ Do NOT implement any scoring or recommendation logic in the app.
 Phase 5: Profile and reset.
 
 Build Features/Profile:
-- Account info (from UserSession) and a readable summary of the user's onboarding answers.
+- Account info (from UserSession) and the user's picked favorites.
 - Edit streaming subscriptions (saved to Supabase).
-- "Reset taste profile": confirmation dialog, then delete this user's ratings, preferences,
+- "Reset taste profile": confirmation dialog, then delete this user's taste_signals, preferences,
   contexts and recommendations in Supabase – NOT the auth session. Route back to onboarding.
 - Sign out (data stays in Supabase, so signing back in restores it).
 - TabView: Today (recommendations) + Profile.

@@ -5,12 +5,11 @@
 
 import Foundation
 
-/// Falsk login-service til Simulator, previews og tests.
-/// Gemmer sessionen i hukommelsen og taler ikke med Apple eller Supabase.
+/// Falsk login-service til previews og tests.
+/// Gemmer sessionen i hukommelsen og taler ikke med Supabase.
 final class MockAuthService: AuthService {
     static let sampleSession = UserSession(
         userID: "mock-user-id",
-        displayName: "Test Bruger",
         email: "test@cinematch.dev"
     )
 
@@ -18,7 +17,10 @@ final class MockAuthService: AuthService {
     var storedSession: UserSession?
     /// Sæt en fejl her i tests for at simulere at login/logud fejler.
     var errorToThrow: Error?
+    /// Sæt til `true` for at simulere at Supabase kræver e-mail-bekræftelse.
+    var requiresEmailConfirmation = false
 
+    private(set) var signUpCallCount = 0
     private(set) var signInCallCount = 0
     private(set) var signOutCallCount = 0
 
@@ -27,19 +29,21 @@ final class MockAuthService: AuthService {
         self.errorToThrow = errorToThrow
     }
 
+    func signUp(with credential: AuthCredential) async throws -> SignUpResult {
+        signUpCallCount += 1
+        if let errorToThrow { throw errorToThrow }
+        if requiresEmailConfirmation { return .confirmationRequired }
+
+        let session = makeSession(from: credential)
+        storedSession = session
+        return .signedIn(session)
+    }
+
     func signIn(with credential: AuthCredential) async throws -> UserSession {
         signInCallCount += 1
         if let errorToThrow { throw errorToThrow }
 
-        let session: UserSession
-        switch credential {
-        case let .apple(_, _, fullName, email):
-            session = UserSession(
-                userID: Self.sampleSession.userID,
-                displayName: fullName ?? Self.sampleSession.displayName,
-                email: email ?? Self.sampleSession.email
-            )
-        }
+        let session = makeSession(from: credential)
         storedSession = session
         return session
     }
@@ -52,5 +56,12 @@ final class MockAuthService: AuthService {
 
     func currentSession() async -> UserSession? {
         storedSession
+    }
+
+    private func makeSession(from credential: AuthCredential) -> UserSession {
+        switch credential {
+        case let .email(address, _):
+            return UserSession(userID: Self.sampleSession.userID, email: address)
+        }
     }
 }

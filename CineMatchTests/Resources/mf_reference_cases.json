@@ -1,0 +1,916 @@
+{
+  "format": "cinematch.mf-reference-cases",
+  "schemaVersion": 1,
+  "modelVersion": "mf-bdc4066d1a73",
+  "scoreTolerance": 1e-06,
+  "cases": [
+    {
+      "name": "empty_profile_prior_only",
+      "input": {
+        "ratings": [],
+        "excludeTmdbIds": [],
+        "k": 50
+      },
+      "expected": {
+        "personalized": false,
+        "ratingsUsed": 0,
+        "recommendations": [
+          {
+            "tmdbId": 14537,
+            "score": 4.578776
+          },
+          {
+            "tmdbId": 192040,
+            "score": 4.559634
+          },
+          {
+            "tmdbId": 463612,
+            "score": 4.525535
+          },
+          {
+            "tmdbId": 452522,
+            "score": 4.510751
+          },
+          {
+            "tmdbId": 34513,
+            "score": 4.47535
+          },
+          {
+            "tmdbId": 331214,
+            "score": 4.450999
+          },
+          {
+            "tmdbId": 52971,
+            "score": 4.448576
+          },
+          {
+            "tmdbId": 147538,
+            "score": 4.445499
+          },
+          {
+            "tmdbId": 42044,
+            "score": 4.438603
+          },
+          {
+            "tmdbId": 32836,
+            "score": 4.431894
+          },
+          {
+            "tmdbId": 11190,
+            "score": 4.420649
+          },
+          {
+            "tmdbId": 17962,
+            "score": 4.419403
+          },
+          {
+            "tmdbId": 37291,
+            "score": 4.418071
+          },
+          {
+            "tmdbId": 200813,
+            "score": 4.409395
+          },
+          {
+            "tmdbId": 5558,
+            "score": 4.400254
+          },
+          {
+            "tmdbId": 965150,
+            "score": 4.392476
+          },
+          {
+            "tmdbId": 48831,
+            "score": 4.392163
+          },
+          {
+            "tmdbId": 420714,
+            "score": 4.38529
+          },
+          {
+            "tmdbId": 278,
+            "score": 4.382389
+          },
+          {
+            "tmdbId": 11659,
+            "score": 4.382172
+          },
+          {
+            "tmdbId": 5511,
+            "score": 4.380968
+          },
+          {
+            "tmdbId": 25237,
+            "score": 4.369488
+          },
+          {
+            "tmdbId": 29259,
+            "score": 4.368191
+          },
+          {
+            "tmdbId": 996,
+            "score": 4.366188
+          },
+          {
+            "tmdbId": 488705,
+            "score": 4.365539
+          },
+          {
+            "tmdbId": 15244,
+            "score": 4.363803
+          },
+          {
+            "tmdbId": 3086,
+            "score": 4.359849
+          },
+          {
+            "tmdbId": 2457,
+            "score": 4.355002
+          },
+          {
+            "tmdbId": 1563,
+            "score": 4.352349
+          },
+          {
+            "tmdbId": 690,
+            "score": 4.35166
+          },
+          {
+            "tmdbId": 1818,
+            "score": 4.349232
+          },
+          {
+            "tmdbId": 43376,
+            "score": 4.347527
+          },
+          {
+            "tmdbId": 409926,
+            "score": 4.345274
+          },
+          {
+            "tmdbId": 777,
+            "score": 4.344512
+          },
+          {
+            "tmdbId": 18603,
+            "score": 4.343776
+          },
+          {
+            "tmdbId": 14626,
+            "score": 4.342638
+          },
+          {
+            "tmdbId": 901,
+            "score": 4.342529
+          },
+          {
+            "tmdbId": 25161,
+            "score": 4.336694
+          },
+          {
+            "tmdbId": 269981,
+            "score": 4.333679
+          },
+          {
+            "tmdbId": 803,
+            "score": 4.331165
+          },
+          {
+            "tmdbId": 145760,
+            "score": 4.329753
+          },
+          {
+            "tmdbId": 664280,
+            "score": 4.328226
+          },
+          {
+            "tmdbId": 400608,
+            "score": 4.326902
+          },
+          {
+            "tmdbId": 21849,
+            "score": 4.326786
+          },
+          {
+            "tmdbId": 53210,
+            "score": 4.326035
+          },
+          {
+            "tmdbId": 496243,
+            "score": 4.324243
+          },
+          {
+            "tmdbId": 191489,
+            "score": 4.32257
+          },
+          {
+            "tmdbId": 41050,
+            "score": 4.32134
+          },
+          {
+            "tmdbId": 666,
+            "score": 4.318686
+          },
+          {
+            "tmdbId": 776,
+            "score": 4.317173
+          }
+        ]
+      }
+    },
+    {
+      "name": "one_rating",
+      "input": {
+        "ratings": [
+          {
+            "tmdbId": 862,
+            "rating": 5.0
+          }
+        ],
+        "excludeTmdbIds": [],
+        "k": 50
+      },
+      "expected": {
+        "personalized": true,
+        "ratingsUsed": 1,
+        "recommendations": [
+          {
+            "tmdbId": 14537,
+            "score": 4.716248
+          },
+          {
+            "tmdbId": 192040,
+            "score": 4.67951
+          },
+          {
+            "tmdbId": 122,
+            "score": 4.661138
+          },
+          {
+            "tmdbId": 17962,
+            "score": 4.65084
+          },
+          {
+            "tmdbId": 463612,
+            "score": 4.642746
+          },
+          {
+            "tmdbId": 120,
+            "score": 4.627893
+          },
+          {
+            "tmdbId": 147538,
+            "score": 4.617786
+          },
+          {
+            "tmdbId": 452522,
+            "score": 4.609072
+          },
+          {
+            "tmdbId": 121,
+            "score": 4.602737
+          },
+          {
+            "tmdbId": 331214,
+            "score": 4.590691
+          },
+          {
+            "tmdbId": 11190,
+            "score": 4.569788
+          },
+          {
+            "tmdbId": 1818,
+            "score": 4.563132
+          },
+          {
+            "tmdbId": 42044,
+            "score": 4.559207
+          },
+          {
+            "tmdbId": 52971,
+            "score": 4.555421
+          },
+          {
+            "tmdbId": 278,
+            "score": 4.550008
+          },
+          {
+            "tmdbId": 34513,
+            "score": 4.54824
+          },
+          {
+            "tmdbId": 531,
+            "score": 4.545893
+          },
+          {
+            "tmdbId": 901,
+            "score": 4.534377
+          },
+          {
+            "tmdbId": 996,
+            "score": 4.534151
+          },
+          {
+            "tmdbId": 420714,
+            "score": 4.527326
+          },
+          {
+            "tmdbId": 85,
+            "score": 4.526938
+          },
+          {
+            "tmdbId": 29259,
+            "score": 4.521997
+          },
+          {
+            "tmdbId": 5801,
+            "score": 4.513003
+          },
+          {
+            "tmdbId": 5511,
+            "score": 4.512879
+          },
+          {
+            "tmdbId": 424,
+            "score": 4.512108
+          },
+          {
+            "tmdbId": 238,
+            "score": 4.510311
+          },
+          {
+            "tmdbId": 48831,
+            "score": 4.504097
+          },
+          {
+            "tmdbId": 595,
+            "score": 4.504023
+          },
+          {
+            "tmdbId": 503475,
+            "score": 4.50003
+          },
+          {
+            "tmdbId": 567,
+            "score": 4.497957
+          },
+          {
+            "tmdbId": 582,
+            "score": 4.495782
+          },
+          {
+            "tmdbId": 3086,
+            "score": 4.494376
+          },
+          {
+            "tmdbId": 496243,
+            "score": 4.489449
+          },
+          {
+            "tmdbId": 32836,
+            "score": 4.488653
+          },
+          {
+            "tmdbId": 9806,
+            "score": 4.487912
+          },
+          {
+            "tmdbId": 200813,
+            "score": 4.48684
+          },
+          {
+            "tmdbId": 409926,
+            "score": 4.486333
+          },
+          {
+            "tmdbId": 777,
+            "score": 4.485257
+          },
+          {
+            "tmdbId": 25237,
+            "score": 4.485097
+          },
+          {
+            "tmdbId": 289,
+            "score": 4.479213
+          },
+          {
+            "tmdbId": 488705,
+            "score": 4.479068
+          },
+          {
+            "tmdbId": 452830,
+            "score": 4.476653
+          },
+          {
+            "tmdbId": 400608,
+            "score": 4.475349
+          },
+          {
+            "tmdbId": 3782,
+            "score": 4.474803
+          },
+          {
+            "tmdbId": 1786,
+            "score": 4.471516
+          },
+          {
+            "tmdbId": 803,
+            "score": 4.471341
+          },
+          {
+            "tmdbId": 37291,
+            "score": 4.465453
+          },
+          {
+            "tmdbId": 5558,
+            "score": 4.465421
+          },
+          {
+            "tmdbId": 833,
+            "score": 4.464841
+          },
+          {
+            "tmdbId": 12,
+            "score": 4.463764
+          }
+        ]
+      }
+    },
+    {
+      "name": "mixed_ratings",
+      "input": {
+        "ratings": [
+          {
+            "tmdbId": 862,
+            "rating": 5.0
+          },
+          {
+            "tmdbId": 8844,
+            "rating": 1.0
+          },
+          {
+            "tmdbId": 15602,
+            "rating": 4.5
+          },
+          {
+            "tmdbId": 31357,
+            "rating": 2.0
+          },
+          {
+            "tmdbId": 11862,
+            "rating": 3.5
+          }
+        ],
+        "excludeTmdbIds": [],
+        "k": 50
+      },
+      "expected": {
+        "personalized": true,
+        "ratingsUsed": 5,
+        "recommendations": [
+          {
+            "tmdbId": 238,
+            "score": 5.365964
+          },
+          {
+            "tmdbId": 240,
+            "score": 5.260957
+          },
+          {
+            "tmdbId": 278,
+            "score": 5.250309
+          },
+          {
+            "tmdbId": 424,
+            "score": 5.124379
+          },
+          {
+            "tmdbId": 680,
+            "score": 5.110339
+          },
+          {
+            "tmdbId": 463612,
+            "score": 5.073977
+          },
+          {
+            "tmdbId": 38,
+            "score": 5.062967
+          },
+          {
+            "tmdbId": 550,
+            "score": 5.042984
+          },
+          {
+            "tmdbId": 274,
+            "score": 4.980551
+          },
+          {
+            "tmdbId": 14,
+            "score": 4.956435
+          },
+          {
+            "tmdbId": 192040,
+            "score": 4.937289
+          },
+          {
+            "tmdbId": 1786,
+            "score": 4.898269
+          },
+          {
+            "tmdbId": 496243,
+            "score": 4.865512
+          },
+          {
+            "tmdbId": 11878,
+            "score": 4.863179
+          },
+          {
+            "tmdbId": 510,
+            "score": 4.861509
+          },
+          {
+            "tmdbId": 1891,
+            "score": 4.841654
+          },
+          {
+            "tmdbId": 89708,
+            "score": 4.817588
+          },
+          {
+            "tmdbId": 5511,
+            "score": 4.815898
+          },
+          {
+            "tmdbId": 901,
+            "score": 4.814071
+          },
+          {
+            "tmdbId": 197,
+            "score": 4.803709
+          },
+          {
+            "tmdbId": 389,
+            "score": 4.798544
+          },
+          {
+            "tmdbId": 896,
+            "score": 4.797506
+          },
+          {
+            "tmdbId": 11,
+            "score": 4.789468
+          },
+          {
+            "tmdbId": 531,
+            "score": 4.775727
+          },
+          {
+            "tmdbId": 269981,
+            "score": 4.771304
+          },
+          {
+            "tmdbId": 17962,
+            "score": 4.770009
+          },
+          {
+            "tmdbId": 420714,
+            "score": 4.759296
+          },
+          {
+            "tmdbId": 406,
+            "score": 4.75877
+          },
+          {
+            "tmdbId": 996,
+            "score": 4.755038
+          },
+          {
+            "tmdbId": 582,
+            "score": 4.750932
+          },
+          {
+            "tmdbId": 133919,
+            "score": 4.747959
+          },
+          {
+            "tmdbId": 975,
+            "score": 4.747021
+          },
+          {
+            "tmdbId": 17295,
+            "score": 4.73476
+          },
+          {
+            "tmdbId": 387,
+            "score": 4.734719
+          },
+          {
+            "tmdbId": 935,
+            "score": 4.734077
+          },
+          {
+            "tmdbId": 194,
+            "score": 4.728149
+          },
+          {
+            "tmdbId": 803,
+            "score": 4.725867
+          },
+          {
+            "tmdbId": 423,
+            "score": 4.72328
+          },
+          {
+            "tmdbId": 14537,
+            "score": 4.719603
+          },
+          {
+            "tmdbId": 5156,
+            "score": 4.718976
+          },
+          {
+            "tmdbId": 3085,
+            "score": 4.718843
+          },
+          {
+            "tmdbId": 1422,
+            "score": 4.71603
+          },
+          {
+            "tmdbId": 1578,
+            "score": 4.711365
+          },
+          {
+            "tmdbId": 153,
+            "score": 4.709593
+          },
+          {
+            "tmdbId": 769,
+            "score": 4.698552
+          },
+          {
+            "tmdbId": 303,
+            "score": 4.696504
+          },
+          {
+            "tmdbId": 12698,
+            "score": 4.6961
+          },
+          {
+            "tmdbId": 122,
+            "score": 4.694006
+          },
+          {
+            "tmdbId": 452522,
+            "score": 4.679482
+          },
+          {
+            "tmdbId": 265297,
+            "score": 4.67926
+          }
+        ]
+      }
+    },
+    {
+      "name": "additional_exclusions",
+      "input": {
+        "ratings": [
+          {
+            "tmdbId": 862,
+            "rating": 5.0
+          },
+          {
+            "tmdbId": 8844,
+            "rating": 1.0
+          },
+          {
+            "tmdbId": 15602,
+            "rating": 4.5
+          },
+          {
+            "tmdbId": 31357,
+            "rating": 2.0
+          },
+          {
+            "tmdbId": 11862,
+            "rating": 3.5
+          }
+        ],
+        "excludeTmdbIds": [
+          949,
+          11860,
+          45325
+        ],
+        "k": 50
+      },
+      "expected": {
+        "personalized": true,
+        "ratingsUsed": 5,
+        "recommendations": [
+          {
+            "tmdbId": 238,
+            "score": 5.365964
+          },
+          {
+            "tmdbId": 240,
+            "score": 5.260957
+          },
+          {
+            "tmdbId": 278,
+            "score": 5.250309
+          },
+          {
+            "tmdbId": 424,
+            "score": 5.124379
+          },
+          {
+            "tmdbId": 680,
+            "score": 5.110339
+          },
+          {
+            "tmdbId": 463612,
+            "score": 5.073977
+          },
+          {
+            "tmdbId": 38,
+            "score": 5.062967
+          },
+          {
+            "tmdbId": 550,
+            "score": 5.042984
+          },
+          {
+            "tmdbId": 274,
+            "score": 4.980551
+          },
+          {
+            "tmdbId": 14,
+            "score": 4.956435
+          },
+          {
+            "tmdbId": 192040,
+            "score": 4.937289
+          },
+          {
+            "tmdbId": 1786,
+            "score": 4.898269
+          },
+          {
+            "tmdbId": 496243,
+            "score": 4.865512
+          },
+          {
+            "tmdbId": 11878,
+            "score": 4.863179
+          },
+          {
+            "tmdbId": 510,
+            "score": 4.861509
+          },
+          {
+            "tmdbId": 1891,
+            "score": 4.841654
+          },
+          {
+            "tmdbId": 89708,
+            "score": 4.817588
+          },
+          {
+            "tmdbId": 5511,
+            "score": 4.815898
+          },
+          {
+            "tmdbId": 901,
+            "score": 4.814071
+          },
+          {
+            "tmdbId": 197,
+            "score": 4.803709
+          },
+          {
+            "tmdbId": 389,
+            "score": 4.798544
+          },
+          {
+            "tmdbId": 896,
+            "score": 4.797506
+          },
+          {
+            "tmdbId": 11,
+            "score": 4.789468
+          },
+          {
+            "tmdbId": 531,
+            "score": 4.775727
+          },
+          {
+            "tmdbId": 269981,
+            "score": 4.771304
+          },
+          {
+            "tmdbId": 17962,
+            "score": 4.770009
+          },
+          {
+            "tmdbId": 420714,
+            "score": 4.759296
+          },
+          {
+            "tmdbId": 406,
+            "score": 4.75877
+          },
+          {
+            "tmdbId": 996,
+            "score": 4.755038
+          },
+          {
+            "tmdbId": 582,
+            "score": 4.750932
+          },
+          {
+            "tmdbId": 133919,
+            "score": 4.747959
+          },
+          {
+            "tmdbId": 975,
+            "score": 4.747021
+          },
+          {
+            "tmdbId": 17295,
+            "score": 4.73476
+          },
+          {
+            "tmdbId": 387,
+            "score": 4.734719
+          },
+          {
+            "tmdbId": 935,
+            "score": 4.734077
+          },
+          {
+            "tmdbId": 194,
+            "score": 4.728149
+          },
+          {
+            "tmdbId": 803,
+            "score": 4.725867
+          },
+          {
+            "tmdbId": 423,
+            "score": 4.72328
+          },
+          {
+            "tmdbId": 14537,
+            "score": 4.719603
+          },
+          {
+            "tmdbId": 5156,
+            "score": 4.718976
+          },
+          {
+            "tmdbId": 3085,
+            "score": 4.718843
+          },
+          {
+            "tmdbId": 1422,
+            "score": 4.71603
+          },
+          {
+            "tmdbId": 1578,
+            "score": 4.711365
+          },
+          {
+            "tmdbId": 153,
+            "score": 4.709593
+          },
+          {
+            "tmdbId": 769,
+            "score": 4.698552
+          },
+          {
+            "tmdbId": 303,
+            "score": 4.696504
+          },
+          {
+            "tmdbId": 12698,
+            "score": 4.6961
+          },
+          {
+            "tmdbId": 122,
+            "score": 4.694006
+          },
+          {
+            "tmdbId": 452522,
+            "score": 4.679482
+          },
+          {
+            "tmdbId": 265297,
+            "score": 4.67926
+          }
+        ]
+      }
+    }
+  ],
+  "modelJsonSha256": "753385df4a9623449a00fb8c76037cea17481804adabc6b15676a0f082d68cd7"
+}

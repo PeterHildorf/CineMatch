@@ -10,14 +10,14 @@ import Testing
 
 @MainActor
 struct AuthViewModelTests {
-    private struct TestError: Error {}
 
-    private let appleCredential = AuthCredential.apple(
-        idToken: "token",
-        rawNonce: "nonce",
-        fullName: "Peter Hansen",
-        email: "peter@example.com"
-    )
+    /// Laver en ViewModel med udfyldt, gyldig formular.
+    private func makeViewModel(service: MockAuthService) -> AuthViewModel {
+        let viewModel = AuthViewModel(authService: service)
+        viewModel.email = "  peter@example.com "
+        viewModel.password = "hemmelig123"
+        return viewModel
+    }
 
     @Test func startsInLoadingState() {
         let viewModel = AuthViewModel(authService: MockAuthService())
@@ -41,33 +41,78 @@ struct AuthViewModelTests {
         #expect(viewModel.state == .signedIn(MockAuthService.sampleSession))
     }
 
-    @Test func signInSuccessSetsSignedInWithNameAndEmail() async {
+    @Test func cannotSubmitWithInvalidEmailOrShortPassword() {
+        let viewModel = AuthViewModel(authService: MockAuthService())
+
+        viewModel.email = "ikke-en-email"
+        viewModel.password = "hemmelig123"
+        #expect(viewModel.canSubmit == false)
+
+        viewModel.email = "peter@example.com"
+        viewModel.password = "123"
+        #expect(viewModel.canSubmit == false)
+    }
+
+    @Test func signInSuccessTrimsEmailAndClearsPassword() async {
         let service = MockAuthService()
-        let viewModel = AuthViewModel(authService: service)
+        let viewModel = makeViewModel(service: service)
 
-        await viewModel.signIn(with: appleCredential)
+        await viewModel.submit()
 
-        guard case .signedIn(let session) = viewModel.state else {
+        #expect(viewModel.state == .signedIn(UserSession(userID: "mock-user-id", email: "peter@example.com")))
+        #expect(viewModel.password.isEmpty)
+        #expect(viewModel.isWorking == false)
+        #expect(service.signInCallCount == 1)
+        #expect(service.signUpCallCount == 0)
+    }
+
+    @Test func signInWithWrongPasswordShowsFriendlyError() async {
+        let service = MockAuthService(errorToThrow: AuthServiceError.invalidCredentials)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.restoreSession()
+
+        await viewModel.submit()
+
+        #expect(viewModel.state == .signedOut)
+        #expect(viewModel.errorMessage == "Forkert e-mail eller adgangskode.")
+    }
+
+    @Test func signUpSignsInWhenNoConfirmationNeeded() async {
+        let service = MockAuthService()
+        let viewModel = makeViewModel(service: service)
+        viewModel.toggleMode()
+
+        await viewModel.submit()
+
+        #expect(service.signUpCallCount == 1)
+        guard case .signedIn = viewModel.state else {
             Issue.record("Forventede signedIn, fik \(viewModel.state)")
             return
         }
-        #expect(session.displayName == "Peter Hansen")
-        #expect(session.email == "peter@example.com")
-        #expect(viewModel.errorMessage == nil)
-        #expect(viewModel.isWorking == false)
-        #expect(service.signInCallCount == 1)
     }
 
-    @Test func signInFailureShowsErrorAndStaysSignedOut() async {
-        let service = MockAuthService(errorToThrow: TestError())
-        let viewModel = AuthViewModel(authService: service)
+    @Test func signUpWithConfirmationShowsInfoAndSwitchesToSignIn() async {
+        let service = MockAuthService()
+        service.requiresEmailConfirmation = true
+        let viewModel = makeViewModel(service: service)
         await viewModel.restoreSession()
+        viewModel.toggleMode()
 
-        await viewModel.signIn(with: appleCredential)
+        await viewModel.submit()
 
         #expect(viewModel.state == .signedOut)
-        #expect(viewModel.errorMessage != nil)
-        #expect(viewModel.isWorking == false)
+        #expect(viewModel.infoMessage != nil)
+        #expect(viewModel.mode == .signIn)
+    }
+
+    @Test func signUpWithExistingEmailShowsError() async {
+        let service = MockAuthService(errorToThrow: AuthServiceError.emailAlreadyInUse)
+        let viewModel = makeViewModel(service: service)
+        viewModel.toggleMode()
+
+        await viewModel.submit()
+
+        #expect(viewModel.errorMessage?.contains("findes allerede") == true)
     }
 
     @Test func signOutReturnsToSignedOut() async {
@@ -86,12 +131,11 @@ struct AuthViewModelTests {
         let service = MockAuthService(storedSession: MockAuthService.sampleSession)
         let viewModel = AuthViewModel(authService: service)
         await viewModel.restoreSession()
-        service.errorToThrow = TestError()
+        service.errorToThrow = AuthServiceError.network
 
         await viewModel.signOut()
 
         #expect(viewModel.state == .signedIn(MockAuthService.sampleSession))
         #expect(viewModel.errorMessage != nil)
     }
-
 }
