@@ -121,11 +121,42 @@ struct OnDeviceRecommenderTests {
         #expect(try SampleModel.recommender().onboardingFilms(limit: 2).map(\.id) == [1, 3])
     }
 
-    @Test func unknownFormatVersionIsRejected() throws {
-        let newer = SampleModel.json.replacingOccurrences(of: "\"formatVersion\": 1", with: "\"formatVersion\": 2")
-        let file = try JSONDecoder().decode(ModelFile.self, from: Data(newer.utf8))
+    @Test func formatVersion2IsAccepted() throws {
+        // Version 2 er additiv (nye felter pr. film), så den gamle sample skal stadig kunne læses.
+        let v2 = SampleModel.json.replacingOccurrences(of: "\"formatVersion\": 1", with: "\"formatVersion\": 2")
+        let file = try JSONDecoder().decode(ModelFile.self, from: Data(v2.utf8))
 
-        #expect(throws: OnDeviceRecommender.LoadError.unsupportedFormat(2)) {
+        #expect(throws: Never.self) {
+            try OnDeviceRecommender(file: file)
+        }
+    }
+
+    @Test func newFilmFieldsAreDecodedAndMapped() throws {
+        let withFields = SampleModel.json
+            .replacingOccurrences(of: "\"formatVersion\": 1", with: "\"formatVersion\": 2")
+            .replacingOccurrences(
+                of: "{\"id\": 1, \"title\": \"Se7en\", \"year\": 1995, \"genres\": [\"Crime\"], \"director\": \"David Fincher\", \"cast\": \"\", \"description\": \"\", \"runtime\": 127, \"rating\": 4.2, \"quality\": 0}",
+                with: "{\"id\": 1, \"title\": \"Se7en\", \"year\": 1995, \"genres\": [\"Crime\"], \"director\": \"David Fincher\", \"cast\": \"\", \"description\": \"\", \"runtime\": 127, \"rating\": 4.2, \"quality\": 0, \"moods\": [\"thrill\"], \"ageRating\": \"R\", \"tags\": [\"dark\", \"suspenseful\"]}"
+            )
+        let file = try JSONDecoder().decode(ModelFile.self, from: Data(withFields.utf8))
+        let seven = try #require(file.films.first { $0.id == 1 })
+
+        #expect(seven.moods == ["thrill"])
+        #expect(seven.ageRating == "R")
+        #expect(seven.tags == ["dark", "suspenseful"])
+
+        // Felterne skal også nå frem til appens Title-model.
+        let title = Title(seven)
+        #expect(title.moods == ["thrill"])
+        #expect(title.ageRating == "R")
+        #expect(title.tags == ["dark", "suspenseful"])
+    }
+
+    @Test func unknownFormatVersionIsRejected() throws {
+        let unknown = SampleModel.json.replacingOccurrences(of: "\"formatVersion\": 1", with: "\"formatVersion\": 99")
+        let file = try JSONDecoder().decode(ModelFile.self, from: Data(unknown.utf8))
+
+        #expect(throws: OnDeviceRecommender.LoadError.unsupportedFormat(99)) {
             try OnDeviceRecommender(file: file)
         }
     }

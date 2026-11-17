@@ -44,7 +44,10 @@ extension Title {
             director: film.director.isEmpty ? nil : film.director,
             cast: film.cast.isEmpty ? nil : film.cast,
             overview: film.description.isEmpty ? nil : film.description,
-            runtimeMinutes: film.runtime
+            runtimeMinutes: film.runtime,
+            moods: film.moods,
+            ageRating: film.ageRating,
+            tags: film.tags
         )
     }
 }

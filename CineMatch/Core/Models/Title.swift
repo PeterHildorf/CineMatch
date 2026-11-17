@@ -21,4 +21,10 @@ struct Title: Codable, Hashable, Identifiable, Sendable {
     var cast: String? = nil
     var overview: String? = nil
     var runtimeMinutes: Int? = nil
+    /// Stemninger fra modelfilen, fx "laugh", "thrill". `nil` for film uden data.
+    var moods: [String]? = nil
+    /// Vejledende aldersgrænse fra modelfilen, fx "PG-13". `nil` uden data.
+    var ageRating: String? = nil
+    /// Tematiske tags fra modelfilen, fx "feel-good", "slow-burn". `nil` uden data.
+    var tags: [String]? = nil
 }

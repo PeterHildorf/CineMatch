@@ -27,6 +27,12 @@ nonisolated struct ModelFile: Decodable, Sendable {
         let rating: Double
         /// Rating som z-score. Giver et lille plus til godt bedømte film, som i Antons model.
         let quality: Double
+        /// Stemninger udledt af genrer, fx "laugh", "thrill". Kun i formatVersion ≥ 2.
+        let moods: [String]?
+        /// Vejledende aldersgrænse, fx "PG-13". Kun i formatVersion ≥ 2.
+        let ageRating: String?
+        /// Tematiske tags til forsiderækker, fx "feel-good", "slow-burn". Kun i formatVersion ≥ 2.
+        let tags: [String]?
     }
 
     /// Én film, der ligner en anden. Korte navne holder filen lille.

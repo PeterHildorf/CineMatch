@@ -38,7 +38,9 @@ nonisolated struct OnDeviceRecommender: Sendable {
         case unsupportedFormat(Int)
     }
 
-    static let supportedFormatVersion = 1
+    /// Version 1: oprindeligt format. Version 2: tilføjer moods/ageRating/tags pr. film
+    /// og MovieLens-blokken i breakdown. Version 2 er additiv, så begge kan læses.
+    static let supportedFormatVersions: Set<Int> = [1, 2]
     /// Samme grænse som Antons breakdown: mindre bidrag vises ikke.
     static let minimumContribution = 0.005
     /// Onboarding vælger blandt de så mange mest kendte film …
@@ -56,7 +58,7 @@ nonisolated struct OnDeviceRecommender: Sendable {
     private let castKeys: [String]
 
     init(file: ModelFile) throws {
-        guard file.formatVersion == Self.supportedFormatVersion else {
+        guard Self.supportedFormatVersions.contains(file.formatVersion) else {
             throw LoadError.unsupportedFormat(file.formatVersion)
         }
         self.file = file
