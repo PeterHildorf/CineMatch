@@ -83,6 +83,7 @@ final class TasteViewModel {
             history = []
             state = .loaded
         } catch {
+            AppLog.shared.error("Swipe: load failed", error)
             state = .failed("Couldn't load movies. Please try again.")
         }
     }
@@ -128,6 +129,7 @@ final class TasteViewModel {
         do {
             try await tasteSignalService.deleteSignal(movieID: last.title.id)
         } catch {
+            AppLog.shared.error("Swipe: undo failed", error)
             signals[last.title.id] = signal.kind
             ratings[last.title.id] = signal.rating
             queue.removeAll { $0.id == last.title.id }
@@ -149,6 +151,7 @@ final class TasteViewModel {
         do {
             try await tasteSignalService.save(signal)
         } catch {
+            AppLog.shared.error("Swipe: save answer failed", error)
             signals[title.id] = nil
             ratings[title.id] = nil
             history.removeAll { $0.title.id == title.id }

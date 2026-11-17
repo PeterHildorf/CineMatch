@@ -30,9 +30,7 @@ struct StreamingServicesView: View {
                 }
 
                 if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    InlineError(message: errorMessage)
                 }
             }
             .navigationTitle("Which services do you have?")

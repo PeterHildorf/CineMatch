@@ -66,6 +66,7 @@ final class StreamingServicesViewModel {
             errorMessage = nil
             return true
         } catch {
+            AppLog.shared.error("Streaming services: save failed", error)
             errorMessage = "Couldn't save your services. Please try again."
             return false
         }

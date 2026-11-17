@@ -36,9 +36,7 @@ struct SignInView: View {
             .disabled(viewModel.isWorking)
 
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                InlineError(message: errorMessage)
             }
 
             if let infoMessage = viewModel.infoMessage {

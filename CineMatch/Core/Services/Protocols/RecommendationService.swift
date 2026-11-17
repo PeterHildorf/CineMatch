@@ -19,4 +19,7 @@ protocol RecommendationService: Sendable {
     func requestRecompute() async throws
     /// Brugerens seneste anbefalinger, sorteret efter `rank`. Tom liste = ingen endnu.
     func latestRecommendations() async throws -> [Recommendation]
+    /// Hvilken model og hvilket input de seneste anbefalinger kom fra. `nil` = ingen endnu.
+    /// Bruges til at måle præcisionen pr. modelversion.
+    func latestBatch() async -> RecommendationBatch?
 }

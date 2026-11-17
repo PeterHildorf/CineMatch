@@ -5,6 +5,7 @@
 
 enum TasteSignalServiceError: Error, Equatable {
     case network
+    case unauthorized   // ingen gyldig session
     case unknown
 }
 

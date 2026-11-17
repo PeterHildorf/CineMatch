@@ -36,6 +36,7 @@ actor ModelStore {
     func recommender() throws -> OnDeviceRecommender {
         if let cached { return cached }
         guard let url = bundle.url(forResource: Self.fileName, withExtension: "json") else {
+            AppLog.shared.error("cinematch_model.json not found in app bundle")
             throw ModelStoreError.fileNotFound
         }
         do {
@@ -44,6 +45,7 @@ actor ModelStore {
             cached = recommender
             return recommender
         } catch {
+            AppLog.shared.error("Couldn't load cinematch_model.json", error)
             throw ModelStoreError.invalidData
         }
     }

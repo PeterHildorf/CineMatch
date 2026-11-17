@@ -30,6 +30,7 @@ actor MFModelStore {
     func recommender() throws -> MatrixFactorizationRecommender {
         if let cached { return cached }
         guard let url = bundle.url(forResource: Self.fileName, withExtension: "json") else {
+            AppLog.shared.error("cinematch_mf.json not found in app bundle")
             throw ModelStoreError.fileNotFound
         }
         do {
@@ -38,6 +39,7 @@ actor MFModelStore {
             cached = recommender
             return recommender
         } catch {
+            AppLog.shared.error("Couldn't load cinematch_mf.json", error)
             throw ModelStoreError.invalidData
         }
     }

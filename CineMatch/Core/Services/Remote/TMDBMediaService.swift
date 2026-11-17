@@ -46,6 +46,9 @@ final class TMDBMediaService: TitleMediaService {
             cache.updateValue(media, forKey: title.id)   // gemmer også `nil` (ukendt film)
             return media
         } catch {
+            if !(error is CancellationError) {
+                AppLog.shared.error("TMDB lookup failed for \(title.title) (\(title.id)): \(Self.describe(error))")
+            }
             // Netværksfejl gemmes ikke, så næste forsøg prøver igen.
             return nil
         }
@@ -104,7 +107,18 @@ final class TMDBMediaService: TitleMediaService {
     // MARK: - HTTP
 
     /// Read Access Token (lang, med punktummer) sendes som header. Den korte v3-nøgle sendes i URL'en.
-    private var usesBearerToken: Bool { credential.contains(".") }
+    /// Fejlen uden URL: med en v3-nøgle står `api_key` i URL'en, og den må ikke havne i loggen.
+    private static func describe(_ error: Error) -> String {
+        if let error = error as? URLError {
+            return "URLError \(error.code.rawValue): \(error.localizedDescription)"
+        }
+        if error is DecodingError {
+            return String(reflecting: error)
+        }
+        return String(describing: type(of: error))
+    }
+
+        private var usesBearerToken: Bool { credential.contains(".") }
 
     /// Tegn, der må stå ukodet i en query-værdi. `&`, `=` og `+` skal kodes, ellers går "Fast & Furious" i stykker.
     private static let queryValueAllowed: CharacterSet = {

@@ -66,6 +66,7 @@ final class RatingViewModel {
             )
             state = .loaded
         } catch {
+            AppLog.shared.error("Rate: load failed", error)
             state = .failed("Couldn't load movies. Please try again.")
         }
     }
@@ -90,6 +91,7 @@ final class RatingViewModel {
             do {
                 try await signalService.deleteSignal(movieID: title.id)
             } catch {
+                AppLog.shared.error("Rate: remove rating failed", error)
                 ratings[title.id] = previous
                 errorMessage = "Couldn't remove your rating of \(title.title). Please try again."
             }
@@ -100,6 +102,7 @@ final class RatingViewModel {
         do {
             try await signalService.save(TasteSignal(movieID: title.id, kind: TasteSignal.kind(forStars: stars), rating: stars))
         } catch {
+            AppLog.shared.error("Rate: save rating failed", error)
             ratings[title.id] = previous
             errorMessage = "Couldn't save your rating of \(title.title). Please try again."
         }

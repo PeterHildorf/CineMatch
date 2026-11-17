@@ -19,6 +19,8 @@ final class AppContainer {
         let movieDataService: any MovieDataService
         let signalService: any TasteSignalService
         let recommendationService: any RecommendationService
+        /// Logger visninger og "Seen it", så modellens præcision kan måles.
+        var eventLogger: any RecommendationEventLogger = MockRecommendationEventLogger()
     }
 
     let authService: any AuthService
@@ -53,61 +55,87 @@ final class AppContainer {
         // TMDB-nøglen ligger i Secrets.plist. Mangler den, vises pladsholdere i stedet for plakater.
         let mediaService: any TitleMediaService = TMDBConfig.load()
             .map { TMDBMediaService(credential: $0.credential) } ?? MockTitleMediaService()
-        let authService: any AuthService = SupabaseConfig.load()
-            .map { SupabaseAuthService(client: SupabaseClient(supabaseURL: $0.url, supabaseKey: $0.anonKey)) }
-            ?? MockAuthService()
+        // Én klient til både login og data, så de deler session.
+        let client = SupabaseConfig.load().map { SupabaseClient(supabaseURL: $0.url, supabaseKey: $0.anonKey) }
+        let authService: any AuthService = client.map { SupabaseAuthService(client: $0) } ?? MockAuthService()
 
         // Én delt modelfil (actor), så Antons model kun loades én gang, selv om swipe og søgning
         // har hver sin like-bunke og hver sit anbefalingsresultat.
         let antonStore: ModelStore? = ModelStore.isAvailable() ? ModelStore() : nil
 
+        // Så loggen viser, hvilke rigtige services og modeller appen kører med.
+        AppLog.shared.info([
+            "Supabase: \(client == nil ? "missing (mocks)" : "configured")",
+            "TMDB: \(mediaService is TMDBMediaService ? "configured" : "missing (placeholders)")",
+            "Anton model: \(antonStore == nil ? "missing (mocks)" : "available")",
+            "MF model: \(MFModelStore.isAvailable() ? "available" : "missing (mocks)")",
+        ].joined(separator: " · "))
+
         return AppContainer(
             authService: authService,
-            stars: starPipeline(),
-            swipe: antonPipeline(store: antonStore),
-            search: antonPipeline(store: antonStore),
+            stars: starPipeline(storage: Storage(client: client, pipeline: .stars)),
+            swipe: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .swipe)),
+            search: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .search)),
             mediaService: mediaService,
             preferencesService: LocalPreferencesService()
         )
     }
 
-    // TODO: Supabase-versioner af svarene (tabellen taste_signals), så de gemmes under brugeren.
-    // Indtil da gemmes de kun i hukommelsen (forsvinder, når appen lukkes).
+    /// Hvor én pipelines svar og målinger gemmes: Supabase, hvis Secrets.plist er sat op,
+    /// ellers kun i hukommelsen (forsvinder, når appen lukkes).
+    private struct Storage {
+        let signals: any TasteSignalService
+        let eventLogger: any RecommendationEventLogger
+
+        init(client: SupabaseClient?, pipeline: PipelineID) {
+            guard let client else {
+                signals = MockTasteSignalService()
+                eventLogger = MockRecommendationEventLogger()
+                return
+            }
+            signals = SupabaseTasteSignalService(client: client, pipeline: pipeline)
+            eventLogger = SupabaseRecommendationEventLogger(client: client, pipeline: pipeline)
+        }
+    }
 
     /// Mikkels model, hvis `cinematch_mf.json` ligger i appen. Ellers falske anbefalinger.
-    private static func starPipeline() -> ModelPipeline {
-        let signals = MockTasteSignalService()
+    private static func starPipeline(storage: Storage) -> ModelPipeline {
+        let signals = storage.signals
         guard MFModelStore.isAvailable() else {
             return ModelPipeline(
                 movieDataService: LocalJSONMovieDataService(),
                 signalService: signals,
-                recommendationService: MockRecommendationService(delay: .seconds(2))
+                recommendationService: MockRecommendationService(delay: .seconds(2)),
+                eventLogger: storage.eventLogger
             )
         }
         let store = MFModelStore()
         return ModelPipeline(
             movieDataService: MFMovieDataService(store: store),
             signalService: signals,
-            recommendationService: MFRecommendationService(store: store, tasteSignalService: signals)
+            recommendationService: MFRecommendationService(store: store, tasteSignalService: signals),
+            eventLogger: storage.eventLogger
         )
     }
 
     /// Én Anton-pipeline med sin egen like-bunke. Får modellen udefra, så flere pipelines (swipe, søgning)
     /// kan dele samme indlæste modelfil, men stadig have hvert sit input og hvert sit resultat.
     /// `store == nil` (modelfilen mangler) → falske anbefalinger.
-    private static func antonPipeline(store: ModelStore?) -> ModelPipeline {
-        let signals = MockTasteSignalService()
+    private static func antonPipeline(store: ModelStore?, storage: Storage) -> ModelPipeline {
+        let signals = storage.signals
         guard let store else {
             return ModelPipeline(
                 movieDataService: LocalJSONMovieDataService(),
                 signalService: signals,
-                recommendationService: MockRecommendationService(delay: .seconds(2))
+                recommendationService: MockRecommendationService(delay: .seconds(2)),
+                eventLogger: storage.eventLogger
             )
         }
         return ModelPipeline(
             movieDataService: OnDeviceMovieDataService(store: store),
             signalService: signals,
-            recommendationService: OnDeviceRecommendationService(store: store, tasteSignalService: signals)
+            recommendationService: OnDeviceRecommendationService(store: store, tasteSignalService: signals),
+            eventLogger: storage.eventLogger
         )
     }
 

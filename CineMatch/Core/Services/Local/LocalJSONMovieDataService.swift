@@ -18,12 +18,14 @@ struct LocalJSONMovieDataService: MovieDataService {
 
     func allTitles() async throws -> [Title] {
         guard let url = bundle.url(forResource: fileName, withExtension: "json") else {
+            AppLog.shared.error("\(fileName).json not found in app bundle")
             throw MovieDataServiceError.fileNotFound
         }
         do {
             let data = try Data(contentsOf: url)
             return try JSONDecoder().decode([Title].self, from: data)
         } catch {
+            AppLog.shared.error("Couldn't load \(fileName).json", error)
             throw MovieDataServiceError.invalidData
         }
     }

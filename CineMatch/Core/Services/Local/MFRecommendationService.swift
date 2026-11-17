@@ -16,6 +16,7 @@ final class MFRecommendationService: RecommendationService {
     /// Appen viser 5, men skal kunne filtrere (fx "Only my services").
     private let candidateCount: Int
     private var latest: [Recommendation] = []
+    private var batch: RecommendationBatch?
 
     init(store: MFModelStore, tasteSignalService: any TasteSignalService, candidateCount: Int = 50) {
         self.store = store
@@ -71,9 +72,14 @@ final class MFRecommendationService: RecommendationService {
                 reason: Self.reasonText
             )
         }
+        batch = RecommendationBatch(modelVersion: recommender.modelVersion, inputCount: output.ratingsUsed)
     }
 
     func latestRecommendations() async throws -> [Recommendation] {
         latest
+    }
+
+    func latestBatch() async -> RecommendationBatch? {
+        batch
     }
 }

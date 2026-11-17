@@ -100,6 +100,7 @@ final class AuthViewModel {
                 }
             }
         } catch {
+            AppLog.shared.error("Auth: sign in/up failed", error)
             errorMessage = Self.message(for: error)
         }
     }
@@ -112,6 +113,7 @@ final class AuthViewModel {
             try await authService.signOut()
             state = .signedOut
         } catch {
+            AppLog.shared.error("Auth: sign out failed", error)
             errorMessage = "Kunne ikke logge ud. Prøv igen."
         }
     }

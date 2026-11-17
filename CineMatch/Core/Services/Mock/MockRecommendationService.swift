@@ -16,6 +16,8 @@ final class MockRecommendationService: RecommendationService {
 
     /// Det, der "ligger i tabellen" lige nu. Tom = brugeren har ikke fået anbefalinger endnu.
     private(set) var stored: [Recommendation]
+    /// Nyt batch ved hvert `requestRecompute()`, så tests kan se, at målinger skifter batch.
+    private(set) var batch: RecommendationBatch?
     private let nextResult: [Recommendation]
     /// Hvor længe et "Beregn nu" tager – så man kan se loading-tilstanden i appen.
     private let delay: Duration
@@ -32,6 +34,7 @@ final class MockRecommendationService: RecommendationService {
         delay: Duration = .zero
     ) {
         self.stored = stored
+        self.batch = stored.isEmpty ? nil : RecommendationBatch(modelVersion: "mock", inputCount: TasteInput.minimumCount)
         self.nextResult = nextResult
         self.delay = delay
     }
@@ -41,10 +44,15 @@ final class MockRecommendationService: RecommendationService {
         try await Task.sleep(for: delay)
         if let recomputeError { throw recomputeError }
         stored = nextResult
+        batch = RecommendationBatch(modelVersion: "mock", inputCount: TasteInput.minimumCount)
     }
 
     func latestRecommendations() async throws -> [Recommendation] {
         if let loadError { throw loadError }
         return stored.sorted { $0.rank < $1.rank }
+    }
+
+    func latestBatch() async -> RecommendationBatch? {
+        batch
     }
 }

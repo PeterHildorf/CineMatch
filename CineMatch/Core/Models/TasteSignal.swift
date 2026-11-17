@@ -17,11 +17,20 @@ struct TasteSignal: Codable, Hashable, Sendable {
         case neutral
     }
 
+    /// Hvor svaret kom fra. Svarer til kolonnen `source` i `taste_signals`.
+    enum Source: String, Codable, Sendable {
+        /// Swipe, stjerner eller søgning.
+        case onboarding
+        /// "Seen it" på en anbefaling. Bruges både som modellens input og til at måle præcisionen.
+        case feedback
+    }
+
     /// Film-id fra den model, appen bruger (TMDB-id med Mikkels model, Letterboxd-id med Antons).
     let movieID: Int
     let kind: Kind
     /// Stjerner ½–5, hvis brugeren gav stjerner. `nil` ved swipe.
     var rating: Double? = nil
+    var source: Source = .onboarding
 
     /// Stjerner → like/dislike: 3½ eller mere er like, 2 eller mindre er dislike.
     static func kind(forStars stars: Double) -> Kind {

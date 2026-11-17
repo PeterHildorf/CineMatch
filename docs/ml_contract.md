@@ -36,7 +36,10 @@ Brugeren kan også søge efter sine egne favoritter i hele `movies`. **Alle film
 |---|---|---|---|
 | `movies` | ML (import af datasættet) | appen, ML | `movie_id`, `tmdb_id`, `imdb_id`, `title`, `year`, `genres`, `description`, `runtime_minutes`, `letterboxd_rating`, `themes` |
 | `profiles` | Supabase (trigger ved signup), appen | appen | `id`, `onboarding_completed_at` |
-| `taste_signals` | appen | ML | `user_id`, `movie_id`, `signal` (`like` / `dislike`), `source` (`onboarding` / `feedback`), `created_at` |
+| `taste_signals` | appen | ML | `user_id`, `pipeline` (`stars` / `swipe` / `search`), `movie_id`, `signal` (`like` / `dislike` / `neutral`), `rating` (½–5, kun stjerner), `source` (`onboarding` / `feedback`), `created_at`, `updated_at` |
+| `recommendation_batches` | appen | holdet (målinger) | `id`, `user_id`, `pipeline`, `model_version`, `input_count`, `created_at` |
+| `recommendation_impressions` | appen | holdet (målinger) | `batch_id`, `movie_id`, `rank`, `score`, `shown_position`, `shown_at` |
+| `recommendation_feedback` | appen | holdet (målinger) | `batch_id`, `movie_id`, `outcome` (`seen_liked` / `seen_disliked`), `created_at` |
 | `preferences` | appen | ML | `favorite_genres text[]` (senere) |
 | `viewing_contexts` | appen | ML | `mood`, `time_available_minutes`, `company` (senere) |
 | `recommendations` | **kun ML** | appen | `user_id`, `rank` (1–5), `movie_id`, `score`, `reason` (engelsk tekst), `explanation` (jsonb, valgfri), `model_version`, `context_id`, `created_at` |
@@ -59,6 +62,22 @@ create table public.taste_signals (
 
 - Én række pr. (bruger, film). Skifter brugeren mening, opdateres rækken. Fjernes et like, slettes rækken.
 - `source = 'feedback'` bruges senere til tommel op/ned på anbefalingerne. Samme tabel, ingen ny kontrakt.
+- **Ændret i 0004:** nøglen er nu `(user_id, pipeline, movie_id)`. Swipe og søgning har hver sin like-bunke, stjerner har sin egen. Kolonnerne `rating` og `updated_at` er tilføjet, og `signal` kan også være `neutral` (stjerner 2½–3). "Seen it" på en anbefaling gemmes med `source = 'feedback'`, og modellen lærer af det ved næste beregning.
+
+### Måling af præcision (0004)
+
+Appen logger hvert resultat fra modellen (batch), hver film der faktisk blev vist (impression), og "Seen it" (feedback). Læs tallene i SQL Editor:
+
+```sql
+select * from recommendation_metrics;          -- pr. pipeline og model_version
+select * from recommendation_metrics_by_rank;  -- samme, pr. modellens rank
+```
+
+- `precision_liked` = liked / (liked + disliked) blandt sete film. Det er det primære præcisionsmål.
+- `seen_rate` = andel af viste film, brugeren havde set. "Set" er ikke en fejl: modellen ramte noget relevant.
+- Mål altid pr. batch og `model_version`. Feedback ændrer næste batch, så før og efter må ikke blandes.
+- Rank over 10 er erstatninger, der rykkede op efter "Seen it", så de trækker gennemsnittet ned.
+- Star picks logges ikke endnu (ingen "Seen it" der).
 
 ### Sådan bruger ML-servicen signalerne
 

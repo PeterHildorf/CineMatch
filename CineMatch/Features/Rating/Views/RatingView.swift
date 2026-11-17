@@ -21,6 +21,7 @@ struct RatingView: View {
                     Text(message)
                 } actions: {
                     Button("Try again") { Task { await viewModel.load() } }
+                    ShowLogButton()
                 }
             case .loaded:
                 list
@@ -61,9 +62,7 @@ struct RatingView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                InlineError(message: errorMessage)
             }
         }
         .textCase(nil)

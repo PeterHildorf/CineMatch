@@ -59,9 +59,11 @@ final class SupabaseAuthService: AuthService {
             let session = try await client.auth.session
             return makeUserSession(from: session.user)
         } catch is URLError {
+            AppLog.shared.info("Offline – using stored session")
             // Ingen internet: log IKKE brugeren ud – brug den gemte session, hvis der er en.
             return client.auth.currentSession.map { makeUserSession(from: $0.user) }
         } catch {
+            AppLog.shared.info("No valid session, signing out: \(String(reflecting: error))")
             // Sessionen mangler eller er ugyldig: ryd op, så vi starter rent.
             try? await client.auth.signOut()
             return nil
@@ -82,6 +84,7 @@ final class SupabaseAuthService: AuthService {
 
     /// Oversætter Supabase-fejl til vores egne `AuthServiceError`.
     private static func mapError(_ error: Error) -> AuthServiceError {
+        AppLog.shared.error("Supabase auth failed", error)
         if error is URLError { return .network }
         guard let authError = error as? AuthError else { return .unknown }
 

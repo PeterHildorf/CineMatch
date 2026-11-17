@@ -26,6 +26,9 @@ struct RecommendationsView: View {
                     }
                 } actions: {
                     recomputeButton
+                    if viewModel.errorMessage != nil {
+                        ShowLogButton()
+                    }
                 }
             case .failed(let message):
                 ContentUnavailableView {
@@ -34,6 +37,7 @@ struct RecommendationsView: View {
                     Text(message)
                 } actions: {
                     Button("Try again") { Task { await viewModel.load() } }
+                    ShowLogButton()
                 }
             case .loaded(let items):
                 recommendationList(items)
@@ -71,9 +75,7 @@ struct RecommendationsView: View {
     private func recommendationList(_ items: [RecommendationsViewModel.Item]) -> some View {
         List {
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                InlineError(message: errorMessage)
             }
             if viewModel.canFilterByServices {
                 Toggle("Only my services", isOn: Binding(
@@ -87,7 +89,14 @@ struct RecommendationsView: View {
                 }
                 // Placering i den viste liste (1–10), ikke modellens rank – de er forskellige, når der filtreres.
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    RecommendationRow(position: index + 1, item: item, myServices: viewModel.myServices)
+                    RecommendationRow(
+                        position: index + 1,
+                        item: item,
+                        myServices: viewModel.myServices,
+                        onSeen: viewModel.canMarkSeen
+                            ? { liked in Task { await viewModel.markSeen(item, liked: liked) } }
+                            : nil
+                    )
                 }
                 if let filterNote = viewModel.filterNote {
                     Text(filterNote)
@@ -100,6 +109,7 @@ struct RecommendationsView: View {
             }
         }
         .refreshable { await viewModel.load() }
+        .animation(.default, value: items.map(\.id))
     }
 }
 
@@ -108,6 +118,8 @@ private struct RecommendationRow: View {
     let position: Int
     let item: RecommendationsViewModel.Item
     let myServices: Set<StreamingService>
+    /// "Seen it" → true = liked, false = didn't like. `nil` = knappen vises ikke.
+    var onSeen: ((Bool) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -135,10 +147,20 @@ private struct RecommendationRow: View {
                 if let media = item.media {
                     WhereToWatch(media: media, myServices: myServices)
                 }
+                if let onSeen {
+                    SeenItMenu(onSeen: onSeen)
+                }
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+        // Menuen er slået sammen med resten af rækken, så VoiceOver får den som handlinger i stedet.
+        .accessibilityActions {
+            if let onSeen {
+                Button("Seen it – liked it") { onSeen(true) }
+                Button("Seen it – didn't like it") { onSeen(false) }
+            }
+        }
     }
 
     /// "1999 · Action, Sci-Fi". År 0 = ukendt (nogle titler i Mikkels katalog) og vises ikke.
@@ -146,6 +168,25 @@ private struct RecommendationRow: View {
         let genres = title.genres.prefix(3).joined(separator: ", ")
         guard title.year > 0 else { return genres }
         return "\(String(title.year)) · \(genres)"
+    }
+}
+
+/// "Seen it" → lille menu med like eller dislike.
+private struct SeenItMenu: View {
+    let onSeen: (Bool) -> Void
+
+    var body: some View {
+        Menu {
+            Button("Liked it", systemImage: "hand.thumbsup") { onSeen(true) }
+            Button("Didn't like it", systemImage: "hand.thumbsdown") { onSeen(false) }
+        } label: {
+            Label("Seen it", systemImage: "eye")
+                .font(.subheadline.weight(.medium))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.top, 4)
     }
 }
 
@@ -206,7 +247,8 @@ private struct ProviderLogo: View {
     NavigationStack {
         RecommendationsView(viewModel: RecommendationsViewModel(
             recommendationService: MockRecommendationService(stored: MockRecommendationService.sampleRecommendations),
-            movieDataService: MockMovieDataService()
+            movieDataService: MockMovieDataService(),
+            signalService: MockTasteSignalService()
         ))
     }
 }

@@ -98,6 +98,7 @@ final class SearchViewModel {
         } catch is CancellationError {
             // Brugeren skrev videre – den nye søgning overtager.
         } catch {
+            AppLog.shared.error("Search: search failed", error)
             errorMessage = "Couldn't search right now. Please try again."
         }
     }
@@ -119,6 +120,7 @@ final class SearchViewModel {
             do {
                 try await signalService.deleteSignal(movieID: title.id)
             } catch {
+                AppLog.shared.error("Search: remove like failed", error)
                 likedIDs.insert(title.id)
                 errorMessage = "Couldn't remove your like of \(title.title). Please try again."
             }
@@ -127,6 +129,7 @@ final class SearchViewModel {
             do {
                 try await signalService.save(TasteSignal(movieID: title.id, kind: .like))
             } catch {
+                AppLog.shared.error("Search: save like failed", error)
                 likedIDs.remove(title.id)
                 errorMessage = "Couldn't save your like of \(title.title). Please try again."
             }

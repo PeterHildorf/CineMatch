@@ -55,6 +55,8 @@ struct MainTabView: View {
             signalService: container.search.signalService,
             mediaService: container.mediaService
         )
+        // Ingen "Seen it" og ingen målinger på Star picks endnu: det er ikke afgjort, hvordan like/dislike
+        // skal blive til stjerner. Visninger uden feedback ville se ud som 0 % seen-rate i sammenligningen.
         starPicksViewModel = RecommendationsViewModel(
             recommendationService: container.stars.recommendationService,
             movieDataService: container.stars.movieDataService,
@@ -68,6 +70,8 @@ struct MainTabView: View {
             movieDataService: container.swipe.movieDataService,
             mediaService: container.mediaService,
             preferencesService: container.preferencesService,
+            signalService: container.swipe.signalService,
+            eventLogger: container.swipe.eventLogger,
             input: .likes,
             title: "Swipe picks"
         )
@@ -76,6 +80,8 @@ struct MainTabView: View {
             movieDataService: container.search.movieDataService,
             mediaService: container.mediaService,
             preferencesService: container.preferencesService,
+            signalService: container.search.signalService,
+            eventLogger: container.search.eventLogger,
             input: .likes,
             title: "Search picks"
         )

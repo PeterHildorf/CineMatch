@@ -107,9 +107,7 @@ struct SearchView: View {
             }
             if let errorMessage = viewModel.errorMessage {
                 Section {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    InlineError(message: errorMessage)
                 }
             }
             Section {

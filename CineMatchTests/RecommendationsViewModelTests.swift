@@ -111,3 +111,96 @@ struct RecommendationsViewModelTests {
         }
     }
 }
+
+/// "Seen it": like/dislike på en anbefaling, og næste kandidat rykker op.
+@MainActor
+struct SeenItTests {
+
+    /// 12 kandidater (film 101–112), så der er 2 i reserve bag de 10 viste.
+    private static let twelve = (1...12).map { Recommendation(rank: $0, movieID: 100 + $0, score: nil, reason: nil) }
+
+    private func makeViewModel(
+        _ service: MockRecommendationService = MockRecommendationService(stored: twelve),
+        signals: MockTasteSignalService? = MockTasteSignalService()
+    ) -> RecommendationsViewModel {
+        RecommendationsViewModel(recommendationService: service, movieDataService: MockMovieDataService(), signalService: signals)
+    }
+
+    private func shownIDs(_ viewModel: RecommendationsViewModel) -> [Int] {
+        guard case .loaded(let items) = viewModel.state else { return [] }
+        return items.map(\.recommendation.movieID)
+    }
+
+    private func item(_ viewModel: RecommendationsViewModel, movieID: Int) -> RecommendationsViewModel.Item? {
+        guard case .loaded(let items) = viewModel.state else { return nil }
+        return items.first { $0.recommendation.movieID == movieID }
+    }
+
+    @Test func seenMovieIsReplacedByNextCandidate() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), liked: true)
+
+        #expect(shownIDs(viewModel) == [101, 102, 104, 105, 106, 107, 108, 109, 110, 111])
+    }
+
+    @Test(arguments: [true, false])
+    func answerIsSavedAsFeedback(liked: Bool) async throws {
+        let signals = MockTasteSignalService()
+        let viewModel = makeViewModel(signals: signals)
+        await viewModel.load()
+
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), liked: liked)
+
+        #expect(signals.signals == [TasteSignal(movieID: 101, kind: liked ? .like : .dislike, source: .feedback)])
+    }
+
+    @Test func failedSaveKeepsMovieAndShowsError() async throws {
+        let viewModel = makeViewModel(signals: MockTasteSignalService(errorToThrow: .network))
+        await viewModel.load()
+        let before = shownIDs(viewModel)
+
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 105)), liked: true)
+
+        #expect(shownIDs(viewModel) == before)
+        #expect(viewModel.errorMessage != nil)
+    }
+
+    @Test func runningOutOfCandidatesRecomputes() async throws {
+        let service = MockRecommendationService(stored: Self.twelve)
+        let viewModel = makeViewModel(service)
+        await viewModel.load()
+
+        // 12 kandidater: efter 3 "Seen it" er der kun 9 tilbage → nye anbefalinger.
+        for movieID in [101, 102] {
+            await viewModel.markSeen(try #require(item(viewModel, movieID: movieID)), liked: true)
+        }
+        #expect(service.recomputeCallCount == 0)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), liked: true)
+
+        #expect(service.recomputeCallCount == 1)
+    }
+
+    @Test func replacementDoesNotLookUpShownMoviesAgain() async throws {
+        let media = MockTitleMediaService()
+        let viewModel = RecommendationsViewModel(
+            recommendationService: MockRecommendationService(stored: MockRecommendationService.sampleRecommendations),
+            movieDataService: MockMovieDataService(),
+            mediaService: media,
+            signalService: MockTasteSignalService()
+        )
+        await viewModel.load()
+        let lookups = media.requestedIDs.count
+
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 2571)), liked: true)
+
+        #expect(media.requestedIDs.count == lookups)
+    }
+
+    @Test func withoutSignalServiceSeenItIsHidden() async {
+        let viewModel = makeViewModel(signals: nil)
+
+        #expect(!viewModel.canMarkSeen)
+    }
+}

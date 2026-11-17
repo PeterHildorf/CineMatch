@@ -9,6 +9,7 @@ final class OnDeviceRecommendationService: RecommendationService {
     private let store: ModelStore
     private let tasteSignalService: any TasteSignalService
     private var latest: [Recommendation] = []
+    private var batch: RecommendationBatch?
     /// Så mange kandidater gemmes. Appen viser 5, men skal kunne filtrere (fx "Only my services").
     /// Med 25 naboer pr. film giver få likes færre kandidater end dette – det er i orden.
     private let candidateCount: Int
@@ -49,9 +50,15 @@ final class OnDeviceRecommendationService: RecommendationService {
                 reason: recommender.reason(for: result)
             )
         }
+        // Modellen bruger højst `maxLiked` likes, men det er antallet, brugeren har givet, der er interessant.
+        batch = RecommendationBatch(modelVersion: recommender.modelVersion, inputCount: liked.count)
     }
 
     func latestRecommendations() async throws -> [Recommendation] {
         latest
+    }
+
+    func latestBatch() async -> RecommendationBatch? {
+        batch
     }
 }
