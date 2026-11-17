@@ -26,8 +26,10 @@ struct MainTabView: View {
     @State private var step: Step
     @State private var ratingViewModel: RatingViewModel
     @State private var tasteViewModel: TasteViewModel
+    @State private var searchViewModel: SearchViewModel
     @State private var starPicksViewModel: RecommendationsViewModel
     @State private var swipePicksViewModel: RecommendationsViewModel
+    @State private var searchPicksViewModel: RecommendationsViewModel
     @State private var servicesViewModel: StreamingServicesViewModel
     @State private var isShowingServices: Bool
 
@@ -47,6 +49,12 @@ struct MainTabView: View {
             mediaService: container.mediaService,
             input: .likes
         )
+        // Søgning har sin egen Anton-pipeline (egen like-bunke), adskilt fra Swipe.
+        searchViewModel = SearchViewModel(
+            movieDataService: container.search.movieDataService,
+            signalService: container.search.signalService,
+            mediaService: container.mediaService
+        )
         starPicksViewModel = RecommendationsViewModel(
             recommendationService: container.stars.recommendationService,
             movieDataService: container.stars.movieDataService,
@@ -62,6 +70,14 @@ struct MainTabView: View {
             preferencesService: container.preferencesService,
             input: .likes,
             title: "Swipe picks"
+        )
+        searchPicksViewModel = RecommendationsViewModel(
+            recommendationService: container.search.recommendationService,
+            movieDataService: container.search.movieDataService,
+            mediaService: container.mediaService,
+            preferencesService: container.preferencesService,
+            input: .likes,
+            title: "Search picks"
         )
         servicesViewModel = StreamingServicesViewModel(preferencesService: container.preferencesService)
     }
@@ -136,14 +152,27 @@ struct MainTabView: View {
                         .toolbar { accountMenu }
                 }
             }
+            Tab("Search", systemImage: "magnifyingglass") {
+                NavigationStack {
+                    SearchView(viewModel: searchViewModel)
+                        .toolbar { accountMenu }
+                }
+            }
+            Tab("Search picks", systemImage: "wand.and.stars") {
+                NavigationStack {
+                    RecommendationsView(viewModel: searchPicksViewModel)
+                        .toolbar { accountMenu }
+                }
+            }
         }
     }
 
-    /// Begge resultatsider skal vise de nye tjenester.
+    /// Alle resultatsider skal vise de nye tjenester.
     private func servicesChanged() {
         Task {
             await starPicksViewModel.preferencesChanged()
             await swipePicksViewModel.preferencesChanged()
+            await searchPicksViewModel.preferencesChanged()
         }
     }
 

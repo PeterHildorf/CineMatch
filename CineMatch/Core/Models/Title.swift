@@ -16,6 +16,9 @@ struct Title: Codable, Hashable, Identifiable, Sendable {
     let genres: [String]
     /// Fra modelfilen. `nil` for film fra den gamle MovieLens-liste.
     var director: String? = nil
+    /// Skuespillere som kommasepareret streng, fx "Adam Driver, Greta Gerwig". `nil` uden data.
+    /// Bruges til at søge på skuespiller og vise dem på rækken.
+    var cast: String? = nil
     var overview: String? = nil
     var runtimeMinutes: Int? = nil
 }

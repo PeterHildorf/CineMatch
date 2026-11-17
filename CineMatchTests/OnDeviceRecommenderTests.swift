@@ -92,6 +92,25 @@ struct OnDeviceRecommenderTests {
         #expect(recommender.search("  ").isEmpty)
     }
 
+    @Test func searchMatchesDirector() throws {
+        let recommender = try SampleModel.recommender()
+
+        // "fincher" er ikke en titel, men instruktør på Se7en og Zodiac – i katalogrækkefølge.
+        #expect(recommender.search("fincher").map(\.id) == [1, 2])
+        #expect(recommender.search("villeneuve").map(\.id) == [3])
+    }
+
+    @Test func searchMatchesActorName() throws {
+        // Giv Toy Story et cast, og søg på en skuespiller.
+        let json = SampleModel.json.replacingOccurrences(
+            of: #""director": "John Lasseter", "cast": """#,
+            with: #""director": "John Lasseter", "cast": "Tom Hanks, Tim Allen""#
+        )
+        let recommender = try OnDeviceRecommender(file: JSONDecoder().decode(ModelFile.self, from: Data(json.utf8)))
+
+        #expect(recommender.search("hanks").map(\.id) == [4])
+    }
+
     @Test func starterFilmsComeFromFile() throws {
         #expect(try SampleModel.recommender().starterFilms.map(\.id) == [1, 4])
     }

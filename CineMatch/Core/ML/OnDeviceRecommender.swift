@@ -51,6 +51,9 @@ nonisolated struct OnDeviceRecommender: Sendable {
     private let indexByID: [Int: Int]
     /// Normaliserede titler til søgning og til at undgå dubletter.
     private let titleKeys: [String]
+    /// Normaliserede instruktør- og skuespillernavne, så man kan søge på dem.
+    private let directorKeys: [String]
+    private let castKeys: [String]
 
     init(file: ModelFile) throws {
         guard file.formatVersion == Self.supportedFormatVersion else {
@@ -64,6 +67,8 @@ nonisolated struct OnDeviceRecommender: Sendable {
         }
         indexByID = index
         titleKeys = file.films.map { Self.searchKey($0.title) }
+        directorKeys = file.films.map { Self.searchKey($0.director) }
+        castKeys = file.films.map { Self.searchKey($0.cast) }
     }
 
     // MARK: - Film
@@ -112,21 +117,29 @@ nonisolated struct OnDeviceRecommender: Sendable {
         return result.isEmpty ? starterFilms : result
     }
 
-    /// Søger i titler. Titler, der starter med søgningen, kommer først, ellers efter popularitet.
+    /// Søger i titel, instruktør og skuespiller. Prioritet: titel der starter med søgningen,
+    /// derefter titel der indeholder den, så instruktør, så skuespiller. Inden for hver gruppe
+    /// efter filmens plads i kataloget (de mest kendte først). Hver film tælles kun én gang.
     func search(_ query: String, limit: Int = 20) -> [ModelFile.Film] {
         let key = Self.searchKey(query)
         guard !key.isEmpty else { return [] }
-        var startsWith: [Int] = []
-        var contains: [Int] = []
-        for (position, title) in titleKeys.enumerated() {
-            if title.hasPrefix(key) {
-                startsWith.append(position)
-                if startsWith.count == limit { break }
-            } else if contains.count < limit, title.contains(key) {
-                contains.append(position)
+        var titlePrefix: [Int] = []
+        var titleContains: [Int] = []
+        var directorMatch: [Int] = []
+        var castMatch: [Int] = []
+        for position in file.films.indices {
+            if titleKeys[position].hasPrefix(key) {
+                titlePrefix.append(position)
+            } else if titleKeys[position].contains(key) {
+                titleContains.append(position)
+            } else if directorKeys[position].contains(key) {
+                directorMatch.append(position)
+            } else if castKeys[position].contains(key) {
+                castMatch.append(position)
             }
         }
-        return (startsWith + contains).prefix(limit).map { file.films[$0] }
+        let ordered = titlePrefix + titleContains + directorMatch + castMatch
+        return ordered.prefix(limit).map { file.films[$0] }
     }
 
     // MARK: - Anbefalinger

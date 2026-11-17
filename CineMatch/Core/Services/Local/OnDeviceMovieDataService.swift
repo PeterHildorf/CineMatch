@@ -42,6 +42,7 @@ extension Title {
             year: film.year,
             genres: film.genres,
             director: film.director.isEmpty ? nil : film.director,
+            cast: film.cast.isEmpty ? nil : film.cast,
             overview: film.description.isEmpty ? nil : film.description,
             runtimeMinutes: film.runtime
         )

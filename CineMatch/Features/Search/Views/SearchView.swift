@@ -1,0 +1,199 @@
+//
+//  SearchView.swift
+//  CineMatch
+//
+
+import SwiftUI
+
+/// Søg efter film i Antons on-device-katalog og like dem, du kan lide.
+/// Du kan søge på titel, instruktør eller skuespiller – eller browse på genre, hvis du er i tvivl.
+/// Likene lander i Search-bunken, så de tæller med i "Search picks".
+struct SearchView: View {
+    @Bindable var viewModel: SearchViewModel
+
+    var body: some View {
+        content
+            .navigationTitle("Search")
+            .searchable(text: $viewModel.query, prompt: "Title, director or actor")
+            // Kører søgningen, hver gang teksten ændrer sig. `task(id:)` afbryder den forrige søgning.
+            .task(id: viewModel.query) { await viewModel.runSearch() }
+            .task {
+                await viewModel.loadLikes()
+                await viewModel.loadSuggestions()
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !viewModel.hasQuery {
+            browse
+        } else if viewModel.results.isEmpty {
+            if viewModel.isSearching {
+                ProgressView("Searching …")
+            } else {
+                ContentUnavailableView.search(text: viewModel.query)
+            }
+        } else {
+            resultsList
+        }
+    }
+
+    // MARK: - Browse (tomt søgefelt)
+
+    @ViewBuilder
+    private var browse: some View {
+        if viewModel.suggestions.isEmpty {
+            ContentUnavailableView {
+                Label("Find movies you love", systemImage: "magnifyingglass")
+            } description: {
+                Text("Search by title, director or actor, then like the movies you enjoy.")
+            }
+        } else {
+            VStack(spacing: 0) {
+                genreChips
+                List {
+                    Section {
+                        ForEach(viewModel.browseResults) { title in row(for: title) }
+                    } header: {
+                        Text("Popular to get started · tap ♥ to like")
+                            .textCase(nil)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    private var genreChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip(title: "All", isSelected: viewModel.selectedGenre == nil) {
+                    viewModel.selectedGenre = nil
+                }
+                ForEach(viewModel.genres, id: \.self) { genre in
+                    chip(title: genre, isSelected: viewModel.selectedGenre == genre) {
+                        viewModel.selectedGenre = viewModel.selectedGenre == genre ? nil : genre
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func chip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? Color.accentColor : Color(.secondarySystemBackground))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .clipShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Søgeresultater
+
+    private var resultsList: some View {
+        List {
+            if viewModel.likeCount > 0 {
+                Section {
+                    Text("^[\(viewModel.likeCount) movie](inflect: true) liked")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let errorMessage = viewModel.errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+            Section {
+                ForEach(viewModel.results) { title in row(for: title) }
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private func row(for title: Title) -> some View {
+        SearchRow(
+            title: title,
+            posterURL: viewModel.posterURLs[title.id],
+            isLiked: viewModel.isLiked(title)
+        ) {
+            Task { await viewModel.toggleLike(title) }
+        }
+        .task { await viewModel.loadPoster(for: title) }
+    }
+}
+
+/// Én film: plakat, titel, år/genre, instruktør/skuespillere og en like-knap.
+private struct SearchRow: View {
+    let title: Title
+    let posterURL: URL?
+    let isLiked: Bool
+    let onToggleLike: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            PosterImage(url: posterURL)
+                .frame(width: 50, height: 75)
+                .clipShape(.rect(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if let credits {
+                    Text(credits)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onToggleLike) {
+                Image(systemName: isLiked ? "heart.fill" : "heart")
+                    .font(.title3)
+                    .foregroundStyle(isLiked ? .pink : .secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isLiked ? "Remove like from \(title.title)" : "Like \(title.title)")
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var subtitle: String {
+        let genres = title.genres.prefix(3).joined(separator: ", ")
+        return title.year > 0 ? "\(String(title.year)) · \(genres)" : genres
+    }
+
+    /// "Noah Baumbach · Adam Driver, Greta Gerwig" – så man kan genkende filmen uden titlen.
+    private var credits: String? {
+        var parts: [String] = []
+        if let director = title.director, !director.isEmpty { parts.append(director) }
+        if let cast = title.cast, !cast.isEmpty {
+            parts.append(cast.split(separator: ",").prefix(2).map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: ", "))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SearchView(viewModel: SearchViewModel(
+            movieDataService: MockMovieDataService(),
+            signalService: MockTasteSignalService(signals: [TasteSignal(movieID: 2571, kind: .like)])
+        ))
+    }
+}

@@ -24,6 +24,9 @@ final class AppContainer {
     let authService: any AuthService
     let stars: ModelPipeline
     let swipe: ModelPipeline
+    /// Antons model igen, men med sin EGEN like-bunke. Søgning bruger den, så swipe og søgning
+    /// ikke påvirker hinanden og hver får sit eget anbefalingsresultat ("Search picks").
+    let search: ModelPipeline
     /// Plakater og streamingtjenester (TMDB).
     let mediaService: any TitleMediaService
     /// Streamingtjenester og andre indstillinger.
@@ -33,12 +36,14 @@ final class AppContainer {
         authService: any AuthService,
         stars: ModelPipeline,
         swipe: ModelPipeline,
+        search: ModelPipeline,
         mediaService: any TitleMediaService = MockTitleMediaService(),
         preferencesService: any PreferencesService = MockPreferencesService()
     ) {
         self.authService = authService
         self.stars = stars
         self.swipe = swipe
+        self.search = search
         self.mediaService = mediaService
         self.preferencesService = preferencesService
     }
@@ -52,10 +57,15 @@ final class AppContainer {
             .map { SupabaseAuthService(client: SupabaseClient(supabaseURL: $0.url, supabaseKey: $0.anonKey)) }
             ?? MockAuthService()
 
+        // Én delt modelfil (actor), så Antons model kun loades én gang, selv om swipe og søgning
+        // har hver sin like-bunke og hver sit anbefalingsresultat.
+        let antonStore: ModelStore? = ModelStore.isAvailable() ? ModelStore() : nil
+
         return AppContainer(
             authService: authService,
             stars: starPipeline(),
-            swipe: swipePipeline(),
+            swipe: antonPipeline(store: antonStore),
+            search: antonPipeline(store: antonStore),
             mediaService: mediaService,
             preferencesService: LocalPreferencesService()
         )
@@ -82,17 +92,18 @@ final class AppContainer {
         )
     }
 
-    /// Antons model, hvis `cinematch_model.json` ligger i appen. Ellers falske anbefalinger.
-    private static func swipePipeline() -> ModelPipeline {
+    /// Én Anton-pipeline med sin egen like-bunke. Får modellen udefra, så flere pipelines (swipe, søgning)
+    /// kan dele samme indlæste modelfil, men stadig have hvert sit input og hvert sit resultat.
+    /// `store == nil` (modelfilen mangler) → falske anbefalinger.
+    private static func antonPipeline(store: ModelStore?) -> ModelPipeline {
         let signals = MockTasteSignalService()
-        guard ModelStore.isAvailable() else {
+        guard let store else {
             return ModelPipeline(
                 movieDataService: LocalJSONMovieDataService(),
                 signalService: signals,
                 recommendationService: MockRecommendationService(delay: .seconds(2))
             )
         }
-        let store = ModelStore()
         return ModelPipeline(
             movieDataService: OnDeviceMovieDataService(store: store),
             signalService: signals,
@@ -110,6 +121,11 @@ final class AppContainer {
                 recommendationService: MockRecommendationService(delay: .seconds(1))
             ),
             swipe: ModelPipeline(
+                movieDataService: MockMovieDataService(),
+                signalService: MockTasteSignalService(),
+                recommendationService: MockRecommendationService(delay: .seconds(1))
+            ),
+            search: ModelPipeline(
                 movieDataService: MockMovieDataService(),
                 signalService: MockTasteSignalService(),
                 recommendationService: MockRecommendationService(delay: .seconds(1))
