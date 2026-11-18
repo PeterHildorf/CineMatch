@@ -52,9 +52,9 @@ final class SupabaseRecommendationEventLogger: RecommendationEventLogger {
             try await client.from("recommendation_impressions")
                 .upsert(rows, onConflict: "batch_id,movie_id", ignoreDuplicates: true)   // første visning tæller
                 .execute()
-        case let .feedback(batchID, movieID, outcome):
+        case let .feedback(batchID, movieID, verdict):
             try await client.from("recommendation_feedback")
-                .upsert(FeedbackRow(batchID: batchID, movieID: movieID, outcome: outcome.rawValue),
+                .upsert(FeedbackRow(batchID: batchID, movieID: movieID, verdict: verdict),
                         onConflict: "batch_id,movie_id", ignoreDuplicates: true)
                 .execute()
         }
@@ -96,13 +96,22 @@ final class SupabaseRecommendationEventLogger: RecommendationEventLogger {
         }
     }
 
+    /// `outcome` (liked/disliked) til målingerne fra 0004, `score` (1/2/3/5) fra 0005.
     nonisolated struct FeedbackRow: Encodable, Sendable {
         let batchID: UUID
         let movieID: Int
         let outcome: String
+        let score: Int
+
+        init(batchID: UUID, movieID: Int, verdict: Verdict) {
+            self.batchID = batchID
+            self.movieID = movieID
+            outcome = RecommendationOutcome(verdict).rawValue
+            score = verdict.score
+        }
 
         enum CodingKeys: String, CodingKey {
-            case batchID = "batch_id", movieID = "movie_id", outcome
+            case batchID = "batch_id", movieID = "movie_id", outcome, score
         }
     }
 }

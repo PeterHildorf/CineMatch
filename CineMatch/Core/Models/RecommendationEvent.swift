@@ -45,10 +45,15 @@ nonisolated struct RecommendationImpression: Hashable, Sendable {
     let shownPosition: Int
 }
 
-/// Brugerens svar på "Seen it".
+/// Brugerens svar på "Seen it", groft. Den præcise dom (`Verdict`) logges ved siden af.
+/// Great/Fantastic = liked, Horrible/Bad = disliked – så målingerne fra 0004 virker uændret.
 nonisolated enum RecommendationOutcome: String, Codable, Sendable {
     case seenLiked = "seen_liked"
     case seenDisliked = "seen_disliked"
+
+    init(_ verdict: Verdict) {
+        self = verdict.isPositive ? .seenLiked : .seenDisliked
+    }
 }
 
 /// Det, der logges for at måle modellernes præcision. Rækkefølgen betyder noget:
@@ -56,5 +61,6 @@ nonisolated enum RecommendationOutcome: String, Codable, Sendable {
 nonisolated enum RecommendationEvent: Hashable, Sendable {
     case batch(RecommendationBatch)
     case impressions(batchID: UUID, [RecommendationImpression])
-    case feedback(batchID: UUID, movieID: Int, outcome: RecommendationOutcome)
+    /// "Seen it" med brugerens dom (aldrig `.notSeen`).
+    case feedback(batchID: UUID, movieID: Int, verdict: Verdict)
 }

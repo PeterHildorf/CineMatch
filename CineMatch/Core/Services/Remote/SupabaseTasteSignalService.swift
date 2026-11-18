@@ -8,6 +8,7 @@ import Supabase
 
 /// Gemmer brugerens svar i Supabase-tabellen `taste_signals`, så de følger brugeren og ikke telefonen.
 /// Én instans pr. pipeline: swipe, søgning og stjerner har hver deres svar (se migration 0004).
+/// Dommen gemmes som tal i `rating` (0/1/2/3/5, se migration 0005) og groft i `signal` (like/dislike/unseen).
 final class SupabaseTasteSignalService: TasteSignalService {
     private let client: SupabaseClient
     private let pipeline: PipelineID
@@ -41,7 +42,7 @@ final class SupabaseTasteSignalService: TasteSignalService {
                 pipeline: pipeline.rawValue,
                 movieID: signal.movieID,
                 signal: signal.kind.rawValue,
-                rating: signal.rating,
+                rating: Double(signal.score),   // skalaens tal: 0, 1, 2, 3 eller 5
                 source: signal.source.rawValue
             )
             try await client.from(Row.table)
@@ -66,6 +67,19 @@ final class SupabaseTasteSignalService: TasteSignalService {
         }
     }
 
+    func deleteAllSignals() async throws {
+        do {
+            let userID = try await currentUserID()
+            try await client.from(Row.table)
+                .delete()
+                .eq("user_id", value: userID)
+                .eq("pipeline", value: pipeline.rawValue)
+                .execute()
+        } catch {
+            throw mapError(error, "delete all")
+        }
+    }
+
     // MARK: - Hjælpere
 
     private func currentUserID() async throws -> UUID {
@@ -82,9 +96,21 @@ final class SupabaseTasteSignalService: TasteSignalService {
     }
 
     /// `nil`, hvis rækken har en værdi, appen ikke kender.
+    /// `rating` er skalaens tal. Gamle rækker uden tal (swipe før 0005) oversættes: like → Great, dislike → Bad.
     static func signal(from row: Row) -> TasteSignal? {
-        guard let kind = TasteSignal.Kind(rawValue: row.signal) else { return nil }
-        return TasteSignal(movieID: row.movieID, kind: kind, rating: row.rating, source: TasteSignal.Source(rawValue: row.source) ?? .onboarding)
+        let verdict: Verdict?
+        if let rating = row.rating {
+            verdict = Verdict(storedScore: rating)
+        } else {
+            switch TasteSignal.Kind(rawValue: row.signal) {
+            case .like: verdict = .great
+            case .dislike: verdict = .bad
+            case .unseen: verdict = .notSeen
+            case nil: verdict = nil
+            }
+        }
+        guard let verdict else { return nil }
+        return TasteSignal(movieID: row.movieID, verdict: verdict, source: TasteSignal.Source(rawValue: row.source) ?? .onboarding)
     }
 
     /// Logger den rå fejl (brugeren ser kun en generel besked) og oversætter den.

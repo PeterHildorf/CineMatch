@@ -5,9 +5,9 @@
 
 import SwiftUI
 
-/// Søg efter film i Antons on-device-katalog og like dem, du kan lide.
+/// Søg efter film i Antons on-device-katalog og bedømm dem, du har set (samme skala som Swipe).
 /// Du kan søge på titel, instruktør eller skuespiller – eller browse på genre, hvis du er i tvivl.
-/// Likene lander i Search-bunken, så de tæller med i "Search picks".
+/// Dommene lander i samme bunke som Swipe, så Today ændrer sig med det samme.
 struct SearchView: View {
     @Bindable var viewModel: SearchViewModel
 
@@ -18,7 +18,7 @@ struct SearchView: View {
             // Kører søgningen, hver gang teksten ændrer sig. `task(id:)` afbryder den forrige søgning.
             .task(id: viewModel.query) { await viewModel.runSearch() }
             .task {
-                await viewModel.loadLikes()
+                await viewModel.loadVerdicts()
                 await viewModel.loadSuggestions()
             }
     }
@@ -46,7 +46,7 @@ struct SearchView: View {
             ContentUnavailableView {
                 Label("Find movies you love", systemImage: "magnifyingglass")
             } description: {
-                Text("Search by title, director or actor, then like the movies you enjoy.")
+                Text("Search by title, director or actor, then rate the movies you've seen.")
             }
         } else {
             VStack(spacing: 0) {
@@ -55,7 +55,7 @@ struct SearchView: View {
                     Section {
                         ForEach(viewModel.browseResults) { title in row(for: title) }
                     } header: {
-                        Text("Popular to get started · tap ♥ to like")
+                        Text("Popular to get started · rate the ones you've seen")
                             .textCase(nil)
                     }
                 }
@@ -98,9 +98,9 @@ struct SearchView: View {
 
     private var resultsList: some View {
         List {
-            if viewModel.likeCount > 0 {
+            if viewModel.ratedCount > 0 {
                 Section {
-                    Text("^[\(viewModel.likeCount) movie](inflect: true) liked")
+                    Text("^[\(viewModel.ratedCount) movie](inflect: true) rated")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -121,20 +121,21 @@ struct SearchView: View {
         SearchRow(
             title: title,
             posterURL: viewModel.posterURLs[title.id],
-            isLiked: viewModel.isLiked(title)
-        ) {
-            Task { await viewModel.toggleLike(title) }
-        }
+            verdict: viewModel.verdict(for: title),
+            onRate: { verdict in Task { await viewModel.rate(title, verdict) } },
+            onRemove: { Task { await viewModel.removeRating(title) } }
+        )
         .task { await viewModel.loadPoster(for: title) }
     }
 }
 
-/// Én film: plakat, titel, år/genre, instruktør/skuespillere og en like-knap.
+/// Én film: plakat, titel, år/genre, instruktør/skuespillere og "Rate"-menuen.
 private struct SearchRow: View {
     let title: Title
     let posterURL: URL?
-    let isLiked: Bool
-    let onToggleLike: () -> Void
+    let verdict: Verdict?
+    let onRate: (Verdict) -> Void
+    let onRemove: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -160,13 +161,8 @@ private struct SearchRow: View {
 
             Spacer(minLength: 8)
 
-            Button(action: onToggleLike) {
-                Image(systemName: isLiked ? "heart.fill" : "heart")
-                    .font(.title3)
-                    .foregroundStyle(isLiked ? .pink : .secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isLiked ? "Remove like from \(title.title)" : "Like \(title.title)")
+            VerdictMenu(current: verdict, title: "Rate", onRemove: onRemove, onRate: onRate)
+                .accessibilityLabel(verdict.map { "\(title.title): \($0.label)" } ?? "Rate \(title.title)")
         }
         .padding(.vertical, 4)
     }
@@ -190,8 +186,9 @@ private struct SearchRow: View {
 #Preview {
     NavigationStack {
         SearchView(viewModel: SearchViewModel(
-            movieDataService: MockMovieDataService(),
-            signalService: MockTasteSignalService(signals: [TasteSignal(movieID: 2571, kind: .like)])
+            movieDataService: MockMovieDataService(titles: DemoData.titles),
+            signalService: MockTasteSignalService(signals: [TasteSignal(movieID: 807, verdict: .fantastic)]),
+            mediaService: MockTitleMediaService.demo
         ))
     }
 }

@@ -8,10 +8,11 @@ import Supabase
 
 /// Det ENESTE sted, hvor services oprettes. Views og ViewModels får dem injiceret.
 ///
-/// Appen kører to modeller side om side, så de kan sammenlignes:
-/// - `stars`: stjerner (½–5) → Mikkels model. Film-id er TMDB-id.
-/// - `swipe`: like/dislike → Antons model. Film-id er Letterboxd-id.
-/// De har hver deres svar, fordi de bruger forskellige film-id'er.
+/// Alle bedømmelser bruger samme skala (`Verdict`: 0/1/2/3/5). Pipelines:
+/// - `swipe`: Swipe, Search og Today → Antons model. Film-id er Letterboxd-id.
+///   Swipe og Search gemmer i samme bunke, så Today ændrer sig, uanset hvor brugeren bedømmer.
+/// - `stars`: Mikkels model (TMDB-id). Ikke i UI'et lige nu (Rate og Star picks er fjernet).
+///   TODO: Fodr den med swipe-dommene oversat Letterboxd-id → TMDB-id, så Today kan skifte model.
 @MainActor
 final class AppContainer {
     /// Én models data: film, brugerens svar og anbefalinger.
@@ -26,26 +27,23 @@ final class AppContainer {
     let authService: any AuthService
     let stars: ModelPipeline
     let swipe: ModelPipeline
-    /// Antons model igen, men med sin EGEN like-bunke. Søgning bruger den, så swipe og søgning
-    /// ikke påvirker hinanden og hver får sit eget anbefalingsresultat ("Search picks").
-    let search: ModelPipeline
     /// Plakater og streamingtjenester (TMDB).
     let mediaService: any TitleMediaService
     /// Streamingtjenester og andre indstillinger.
     let preferencesService: any PreferencesService
+    /// Launch-argumentet `-freshUser`: start som en helt ny testbruger hver gang (se `resetToFreshTestUser()`).
+    var startsAsFreshTestUser = false
 
     init(
         authService: any AuthService,
         stars: ModelPipeline,
         swipe: ModelPipeline,
-        search: ModelPipeline,
         mediaService: any TitleMediaService = MockTitleMediaService(),
         preferencesService: any PreferencesService = MockPreferencesService()
     ) {
         self.authService = authService
         self.stars = stars
         self.swipe = swipe
-        self.search = search
         self.mediaService = mediaService
         self.preferencesService = preferencesService
     }
@@ -59,8 +57,6 @@ final class AppContainer {
         let client = SupabaseConfig.load().map { SupabaseClient(supabaseURL: $0.url, supabaseKey: $0.anonKey) }
         let authService: any AuthService = client.map { SupabaseAuthService(client: $0) } ?? MockAuthService()
 
-        // Én delt modelfil (actor), så Antons model kun loades én gang, selv om swipe og søgning
-        // har hver sin like-bunke og hver sit anbefalingsresultat.
         let antonStore: ModelStore? = ModelStore.isAvailable() ? ModelStore() : nil
 
         // Så loggen viser, hvilke rigtige services og modeller appen kører med.
@@ -71,14 +67,15 @@ final class AppContainer {
             "MF model: \(MFModelStore.isAvailable() ? "available" : "missing (mocks)")",
         ].joined(separator: " · "))
 
-        return AppContainer(
+        let container = AppContainer(
             authService: authService,
             stars: starPipeline(storage: Storage(client: client, pipeline: .stars)),
             swipe: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .swipe)),
-            search: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .search)),
             mediaService: mediaService,
             preferencesService: LocalPreferencesService()
         )
+        container.startsAsFreshTestUser = ProcessInfo.processInfo.arguments.contains("-freshUser")
+        return container
     }
 
     /// Hvor én pipelines svar og målinger gemmes: Supabase, hvis Secrets.plist er sat op,
@@ -139,6 +136,65 @@ final class AppContainer {
         )
     }
 
+    /// `-freshUser`: logger ud, logger ind som testbrugeren og sletter alt, han har gjort,
+    /// så appen opfører sig som første gang (tjenester → Swipe-onboarding → Recommendations).
+    /// Rører kun testbrugeren fra Secrets.plist – aldrig den bruger, der var logget ind før.
+    /// Målinger (`recommendation_*`) kan appen ikke slette (RLS); de ligger under testbrugerens id.
+    func resetToFreshTestUser() async {
+        // Altid ud først: så ender man aldrig stille og roligt på sin egen konto, hvis noget mangler.
+        try? await authService.signOut()
+        guard let testUser = TestUserConfig.load() else {
+            AppLog.shared.info("-freshUser: add TEST_USER_EMAIL and TEST_USER_PASSWORD to Secrets.plist – showing sign-in")
+            return
+        }
+        do {
+            _ = try await authService.signIn(with: .email(address: testUser.email, password: testUser.password))
+        } catch {
+            AppLog.shared.error("-freshUser: couldn't sign in as \(testUser.email)", error)
+            return
+        }
+        for pipeline in [stars, swipe] {
+            do {
+                try await pipeline.signalService.deleteAllSignals()
+            } catch {
+                AppLog.shared.error("-freshUser: couldn't delete answers", error)
+            }
+        }
+        // Lokalt gemt: streamingtjenester og "Today's pick"/streak.
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys
+        where key == "streamingPreferences" || key.hasPrefix("dailyPick.") {
+            defaults.removeObject(forKey: key)
+        }
+        AppLog.shared.info("-freshUser: signed in as \(testUser.email) with no answers")
+    }
+
+    /// Hele appen med mockdata (`DemoData`), så UI'et kan ses uden modelfiler og Supabase.
+    /// Start appen med launch-argumentet `-demo` (Edit Scheme → Run → Arguments).
+    /// Med TMDB-nøgle i Secrets.plist vises rigtige plakater, ellers pladsholdere.
+    static func demo() -> AppContainer {
+        let mediaService: any TitleMediaService = TMDBConfig.load()
+            .map { TMDBMediaService(credential: $0.credential) } ?? MockTitleMediaService.demo
+        func pipeline() -> ModelPipeline {
+            let signals = MockTasteSignalService()
+            return ModelPipeline(
+                movieDataService: MockMovieDataService(titles: DemoData.swipeTitles, catalog: DemoData.titles),
+                signalService: signals,
+                recommendationService: MockRecommendationService(
+                    nextResult: DemoData.recommendations, delay: .seconds(1), tasteSignalService: signals
+                )
+            )
+        }
+        AppLog.shared.info("Demo mode: mock data, no Supabase or model files")
+        return AppContainer(
+            authService: MockAuthService(storedSession: MockAuthService.sampleSession),
+            stars: pipeline(),
+            swipe: pipeline(),
+            mediaService: mediaService,
+            preferencesService: MockPreferencesService()
+        )
+    }
+
     /// Kun falske services – til previews og tests.
     static func mock(signedIn: Bool = false) -> AppContainer {
         AppContainer(
@@ -149,11 +205,6 @@ final class AppContainer {
                 recommendationService: MockRecommendationService(delay: .seconds(1))
             ),
             swipe: ModelPipeline(
-                movieDataService: MockMovieDataService(),
-                signalService: MockTasteSignalService(),
-                recommendationService: MockRecommendationService(delay: .seconds(1))
-            ),
-            search: ModelPipeline(
                 movieDataService: MockMovieDataService(),
                 signalService: MockTasteSignalService(),
                 recommendationService: MockRecommendationService(delay: .seconds(1))

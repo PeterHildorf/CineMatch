@@ -30,6 +30,9 @@ struct RootView: View {
             }
         }
         .task {
+            if container.startsAsFreshTestUser {
+                await container.resetToFreshTestUser()
+            }
             await authViewModel.restoreSession()
         }
     }
@@ -42,3 +45,4 @@ struct RootView: View {
 #Preview("Logget ind") {
     RootView(container: .mock(signedIn: true))
 }
+

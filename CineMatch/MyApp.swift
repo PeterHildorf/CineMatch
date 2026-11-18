@@ -1,7 +1,8 @@
 import SwiftUI
 
 @main struct MyApp: App {
-    private let container = AppContainer.live()
+    /// `-demo` som launch-argument → mockdata i hele appen (se `AppContainer.demo()`).
+    private let container = ProcessInfo.processInfo.arguments.contains("-demo") ? AppContainer.demo() : AppContainer.live()
 
     var body: some Scene {
         WindowGroup {

@@ -21,6 +21,8 @@ final class MockRecommendationService: RecommendationService {
     private let nextResult: [Recommendation]
     /// Hvor længe et "Beregn nu" tager – så man kan se loading-tilstanden i appen.
     private let delay: Duration
+    /// Hvis sat: film, brugeren har set, fjernes fra næste resultat – ligesom de rigtige modeller.
+    private let tasteSignalService: (any TasteSignalService)?
 
     /// Sæt fejl i tests for at simulere de forskellige svar fra ML-servicen.
     var recomputeError: RecommendationServiceError?
@@ -31,8 +33,10 @@ final class MockRecommendationService: RecommendationService {
     init(
         stored: [Recommendation] = [],
         nextResult: [Recommendation] = sampleRecommendations,
-        delay: Duration = .zero
+        delay: Duration = .zero,
+        tasteSignalService: (any TasteSignalService)? = nil
     ) {
+        self.tasteSignalService = tasteSignalService
         self.stored = stored
         self.batch = stored.isEmpty ? nil : RecommendationBatch(modelVersion: "mock", inputCount: TasteInput.minimumCount)
         self.nextResult = nextResult
@@ -43,7 +47,8 @@ final class MockRecommendationService: RecommendationService {
         recomputeCallCount += 1
         try await Task.sleep(for: delay)
         if let recomputeError { throw recomputeError }
-        stored = nextResult
+        let seen = (try? await tasteSignalService?.allSignals())?.seenMovieIDs ?? []
+        stored = nextResult.filter { !seen.contains($0.movieID) }
         batch = RecommendationBatch(modelVersion: "mock", inputCount: TasteInput.minimumCount)
     }
 

@@ -3,21 +3,25 @@
 //  CineMatch
 //
 
-/// Hvad den aktive model lærer af. Bestemmer onboardingens tekst og hvornår der er nok svar.
+/// Hvad den aktive model lærer af. Bestemmer vejledningsteksten og hvornår der er nok svar.
+///
+/// Begge modeller får samme skala (`Verdict`). Forskellen er, hvad de kan bruge i dag:
+/// - Antons model tager kun en liste af likes, så kun Great og Fantastic tæller.
+/// - Mikkels model tager alle sete film med deres tal (1, 2, 3, 5).
 enum TasteInput: Equatable, Sendable {
-    /// Antons model: likes.
+    /// Antons model: Great/Fantastic.
     case likes
-    /// Mikkels model: stjerner (½–5). Likes uden stjerner bruges ikke af modellen.
+    /// Mikkels model: alle sete film.
     case starRatings
 
     /// Så mange svar skal der til, før modellen kender brugerens smag.
     static let minimumCount = 5
 
-    /// Fx "Like at least 5 movies in Swipe".
+    /// Fx "Rate at least 5 movies Great or Fantastic".
     var requirementText: String {
         switch self {
-        case .likes: "Like at least \(Self.minimumCount) movies in Swipe"
-        case .starRatings: "Rate at least \(Self.minimumCount) movies with stars in Rate"
+        case .likes: "Rate at least \(Self.minimumCount) movies Great or Fantastic"
+        case .starRatings: "Rate at least \(Self.minimumCount) movies you've seen"
         }
     }
 }

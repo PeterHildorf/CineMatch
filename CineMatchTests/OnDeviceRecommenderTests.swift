@@ -173,10 +173,10 @@ struct OnDeviceRecommendationServiceTests {
     }
 
     /// Fem likes, hvor kun Se7en (1) findes i den lille testmodel.
-    private let fiveLikes = [1, 100, 101, 102, 103].map { TasteSignal(movieID: $0, kind: .like) }
+    private let fiveLikes = [1, 100, 101, 102, 103].map { TasteSignal(movieID: $0, verdict: .great) }
 
     @Test func likesAreInputAndAnsweredFilmsAreExcluded() async throws {
-        let service = try makeService(fiveLikes + [TasteSignal(movieID: 3, kind: .dislike)])
+        let service = try makeService(fiveLikes + [TasteSignal(movieID: 3, verdict: .bad)])
 
         try await service.requestRecompute()
         let recommendations = try await service.latestRecommendations()
@@ -193,9 +193,46 @@ struct OnDeviceRecommendationServiceTests {
             try await fewLikes.requestRecompute()
         }
 
-        let onlyDislikes = try makeService((1...6).map { TasteSignal(movieID: $0, kind: .dislike) })
+        let onlyDislikes = try makeService((1...6).map { TasteSignal(movieID: $0, verdict: .horrible) })
         await #expect(throws: RecommendationServiceError.tooFewLikes) {
             try await onlyDislikes.requestRecompute()
         }
+    }
+
+    @Test func haventSeenIsStillRecommended() async throws {
+        // Zodiac (2) er markeret "Haven't seen" – den må gerne anbefales.
+        let service = try makeService(fiveLikes + [TasteSignal(movieID: 2, verdict: .notSeen)])
+
+        try await service.requestRecompute()
+
+        #expect(try await service.latestRecommendations().map(\.movieID).contains(2))
+    }
+}
+
+/// Skalaen og hvordan den bliver til modelinput.
+struct VerdictScaleTests {
+
+    @Test func scoresMatchTheAgreedScale() {
+        #expect(Verdict.notSeen.score == 0)
+        #expect(Verdict.horrible.score == 1)
+        #expect(Verdict.bad.score == 2)
+        #expect(Verdict.great.score == 3)
+        #expect(Verdict.fantastic.score == 5)
+        #expect(Verdict.seenOptions == [.horrible, .bad, .great, .fantastic])
+    }
+
+    @Test @MainActor func likesPutFantasticFirstThenNewest() {
+        // Nyeste først, som fra Supabase.
+        let signals = [
+            TasteSignal(movieID: 1, verdict: .great),
+            TasteSignal(movieID: 2, verdict: .fantastic),
+            TasteSignal(movieID: 3, verdict: .bad),
+            TasteSignal(movieID: 4, verdict: .notSeen),
+            TasteSignal(movieID: 5, verdict: .great),
+            TasteSignal(movieID: 6, verdict: .fantastic),
+        ]
+
+        #expect(signals.likedMovieIDs == [2, 6, 1, 5])
+        #expect(signals.seenMovieIDs == [1, 2, 3, 5, 6])
     }
 }

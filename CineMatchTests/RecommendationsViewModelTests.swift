@@ -140,20 +140,31 @@ struct SeenItTests {
         let viewModel = makeViewModel()
         await viewModel.load()
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), liked: true)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), verdict: .great)
 
         #expect(shownIDs(viewModel) == [101, 102, 104, 105, 106, 107, 108, 109, 110, 111])
     }
 
-    @Test(arguments: [true, false])
-    func answerIsSavedAsFeedback(liked: Bool) async throws {
+    @Test(arguments: Verdict.seenOptions)
+    func answerIsSavedAsFeedback(verdict: Verdict) async throws {
         let signals = MockTasteSignalService()
         let viewModel = makeViewModel(signals: signals)
         await viewModel.load()
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), liked: liked)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), verdict: verdict)
 
-        #expect(signals.signals == [TasteSignal(movieID: 101, kind: liked ? .like : .dislike, source: .feedback)])
+        #expect(signals.signals == [TasteSignal(movieID: 101, verdict: verdict, source: .feedback)])
+    }
+
+    @Test func haventSeenIsNotAnAnswerToSeenIt() async throws {
+        let signals = MockTasteSignalService()
+        let viewModel = makeViewModel(signals: signals)
+        await viewModel.load()
+
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), verdict: .notSeen)
+
+        #expect(signals.signals.isEmpty)
+        #expect(shownIDs(viewModel).first == 101)
     }
 
     @Test func failedSaveKeepsMovieAndShowsError() async throws {
@@ -161,7 +172,7 @@ struct SeenItTests {
         await viewModel.load()
         let before = shownIDs(viewModel)
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 105)), liked: true)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 105)), verdict: .great)
 
         #expect(shownIDs(viewModel) == before)
         #expect(viewModel.errorMessage != nil)
@@ -174,10 +185,10 @@ struct SeenItTests {
 
         // 12 kandidater: efter 3 "Seen it" er der kun 9 tilbage → nye anbefalinger.
         for movieID in [101, 102] {
-            await viewModel.markSeen(try #require(item(viewModel, movieID: movieID)), liked: true)
+            await viewModel.markSeen(try #require(item(viewModel, movieID: movieID)), verdict: .great)
         }
         #expect(service.recomputeCallCount == 0)
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), liked: true)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 103)), verdict: .great)
 
         #expect(service.recomputeCallCount == 1)
     }
@@ -193,7 +204,7 @@ struct SeenItTests {
         await viewModel.load()
         let lookups = media.requestedIDs.count
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 2571)), liked: true)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 2571)), verdict: .great)
 
         #expect(media.requestedIDs.count == lookups)
     }

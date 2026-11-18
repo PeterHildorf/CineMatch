@@ -31,10 +31,10 @@ final class MockRecommendationEventLogger: RecommendationEventLogger {
         return result
     }
 
-    var feedback: [(batchID: UUID, movieID: Int, outcome: RecommendationOutcome)] {
-        var result: [(batchID: UUID, movieID: Int, outcome: RecommendationOutcome)] = []
-        for case let .feedback(batchID, movieID, outcome) in events {
-            result.append((batchID: batchID, movieID: movieID, outcome: outcome))
+    var feedback: [(batchID: UUID, movieID: Int, verdict: Verdict)] {
+        var result: [(batchID: UUID, movieID: Int, verdict: Verdict)] = []
+        for case let .feedback(batchID, movieID, verdict) in events {
+            result.append((batchID: batchID, movieID: movieID, verdict: verdict))
         }
         return result
     }

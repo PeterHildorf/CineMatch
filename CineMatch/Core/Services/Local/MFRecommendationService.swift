@@ -3,13 +3,14 @@
 //  CineMatch
 //
 
-/// Anbefalinger fra Mikkels model, regnet lokalt ud fra brugerens stjerner.
+/// Anbefalinger fra Mikkels model, regnet lokalt ud fra brugerens domme.
 ///
-/// - Kun svar med stjerner er input. Likes uden stjerner oversættes ikke til stjerner (ingen valideret regel).
-/// - Alle film, brugeren har svaret på (også likes, dislikes og neutrale), anbefales aldrig.
-/// - Modellen giver ingen forklaring, så begrundelsen er bare "Based on your star ratings".
+/// - Input er alle sete film med deres tal fra skalaen: Horrible 1 · Bad 2 · Great 3 · Fantastic 5.
+/// - "Haven't seen" (0) er ikke input og udelukker ikke filmen fra anbefalingerne.
+/// - Alle sete film anbefales aldrig.
+/// - Modellen giver ingen forklaring, så begrundelsen er bare "Based on your ratings".
 final class MFRecommendationService: RecommendationService {
-    static let reasonText = "Based on your star ratings"
+    static let reasonText = "Based on your ratings"
 
     private let store: MFModelStore
     private let tasteSignalService: any TasteSignalService
@@ -32,11 +33,11 @@ final class MFRecommendationService: RecommendationService {
             throw RecommendationServiceError.network
         }
 
-        // Én rating pr. film (den nyeste).
+        // Én dom pr. film (den nyeste). Skalaens tal (1, 2, 3, 5) ligger inden for modellens ½–5.
         var seen = Set<Int>()
         let ratings = signals.compactMap { signal -> MatrixFactorizationRecommender.Rating? in
-            guard let stars = signal.rating, seen.insert(signal.movieID).inserted else { return nil }
-            return MatrixFactorizationRecommender.Rating(tmdbId: signal.movieID, stars: stars)
+            guard signal.verdict.isSeen, seen.insert(signal.movieID).inserted else { return nil }
+            return MatrixFactorizationRecommender.Rating(tmdbId: signal.movieID, stars: Double(signal.score))
         }
         guard ratings.count >= TasteInput.minimumCount else {
             throw RecommendationServiceError.tooFewRatings
@@ -53,7 +54,7 @@ final class MFRecommendationService: RecommendationService {
         do {
             output = try recommender.recommend(
                 ratings: ratings,
-                excluding: Set(signals.map(\.movieID)),
+                excluding: signals.seenMovieIDs,
                 limit: candidateCount
             )
         } catch {

@@ -67,12 +67,12 @@ struct RecommendationEventLoggingTests {
         await viewModel.load()
         let batchID = try #require(logger.batches.first?.id)
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 104)), liked: false)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 104)), verdict: .bad)
 
         #expect(logger.feedback.count == 1)
         #expect(logger.feedback.first?.batchID == batchID)
         #expect(logger.feedback.first?.movieID == 104)
-        #expect(logger.feedback.first?.outcome == .seenDisliked)
+        #expect(logger.feedback.first?.verdict == .bad)
         // Film 111 rykker op som nr. 10 på skærmen, men har stadig modellens rank 11.
         let replacement = try #require(logger.impressions.last?.impression)
         #expect(replacement == RecommendationImpression(movieID: 111, rank: 11, score: 0.89, shownPosition: 10))
@@ -83,7 +83,7 @@ struct RecommendationEventLoggingTests {
         let viewModel = makeViewModel(logger: logger, signals: MockTasteSignalService(errorToThrow: .network))
         await viewModel.load()
 
-        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), liked: true)
+        await viewModel.markSeen(try #require(item(viewModel, movieID: 101)), verdict: .great)
 
         #expect(logger.feedback.isEmpty)
     }
@@ -119,7 +119,7 @@ struct SupabaseRowTests {
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    @Test func swipeSignalSendsRatingAsNull() throws {
+    @Test func rowSendsRatingEvenWhenNull() throws {
         let row = SupabaseTasteSignalService.Row(
             userID: UUID(), pipeline: "swipe", movieID: 42, signal: "like", rating: nil, source: "feedback"
         )
@@ -132,11 +132,32 @@ struct SupabaseRowTests {
         #expect(object["source"] as? String == "feedback")
     }
 
-    @Test @MainActor func rowFromSupabaseBecomesSignal() throws {
-        let data = Data(#"{"movie_id": 7, "signal": "neutral", "rating": 3.0, "source": "onboarding"}"#.utf8)
+    @Test(arguments: Verdict.allCases) @MainActor
+    func rowFromSupabaseBecomesVerdict(verdict: Verdict) throws {
+        let data = Data(#"{"movie_id": 7, "signal": "x", "rating": \#(verdict.score), "source": "feedback"}"#.utf8)
         let row = try JSONDecoder().decode(SupabaseTasteSignalService.Row.self, from: data)
 
-        #expect(SupabaseTasteSignalService.signal(from: row) == TasteSignal(movieID: 7, kind: .neutral, rating: 3.0))
+        #expect(SupabaseTasteSignalService.signal(from: row) == TasteSignal(movieID: 7, verdict: verdict, source: .feedback))
+    }
+
+    @Test @MainActor func oldRowsAreTranslated() throws {
+        func signal(_ json: String) throws -> TasteSignal? {
+            let row = try JSONDecoder().decode(SupabaseTasteSignalService.Row.self, from: Data(json.utf8))
+            return SupabaseTasteSignalService.signal(from: row)
+        }
+        // Swipe før 0005: kun like/dislike.
+        #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": null, "source": "onboarding"}"#)?.verdict == .great)
+        #expect(try signal(#"{"movie_id": 1, "signal": "dislike", "rating": null, "source": "onboarding"}"#)?.verdict == .bad)
+        // Gamle halve stjerner.
+        #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": 4.5, "source": "onboarding"}"#)?.verdict == .fantastic)
+        #expect(try signal(#"{"movie_id": 1, "signal": "neutral", "rating": 2.5, "source": "onboarding"}"#)?.verdict == .bad)
+    }
+
+    @Test func feedbackRowSendsScoreAndOutcome() throws {
+        let object = try json(SupabaseRecommendationEventLogger.FeedbackRow(batchID: UUID(), movieID: 3, verdict: .fantastic))
+
+        #expect(object["score"] as? Int == 5)
+        #expect(object["outcome"] as? String == "seen_liked")
     }
 
     @Test @MainActor func unknownSignalIsSkipped() throws {

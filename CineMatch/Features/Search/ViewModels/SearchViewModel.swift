@@ -6,8 +6,9 @@
 import Foundation
 import Observation
 
-/// "Search": brugeren søger film frem i Antons on-device-katalog og liker dem, han kan lide.
-/// Likes gemmes i samme bunke som Swipe (Antons pipeline), så de tæller med i "Swipe picks".
+/// "Search": brugeren søger film frem i Antons on-device-katalog og bedømmer dem, han har set,
+/// med samme skala som Swipe (Horrible 1 · Bad 2 · Great 3 · Fantastic 5).
+/// Dommene gemmes i samme bunke som Swipe (pipeline `swipe`), så de ændrer Today.
 @Observable
 @MainActor
 final class SearchViewModel {
@@ -19,13 +20,13 @@ final class SearchViewModel {
     private(set) var suggestions: [Title] = []
     /// Valgt genre-chip i browse-visningen. `nil` = alle.
     var selectedGenre: String?
-    /// Film-id'er, brugeren har liket (fra swipe/Anton-bunken). Styrer like-knappens udseende.
-    private(set) var likedIDs: Set<Int> = []
+    /// Brugerens dom pr. film-id. Styrer knappens udseende.
+    private(set) var verdicts: [Int: Verdict] = [:]
     /// Plakater pr. film-id fra TMDB. Mangler en film, vises en pladsholder.
     private(set) var posterURLs: [Int: URL] = [:]
     /// True mens en søgning kører (efter kort forsinkelse).
     private(set) var isSearching = false
-    /// Vises kort, hvis et like ikke kunne gemmes, eller søgningen fejlede.
+    /// Vises kort, hvis en dom ikke kunne gemmes, eller søgningen fejlede.
     var errorMessage: String?
 
     private let movieDataService: any MovieDataService
@@ -42,10 +43,11 @@ final class SearchViewModel {
         self.mediaService = mediaService
     }
 
-    var likeCount: Int { likedIDs.count }
+    /// Sete film, brugeren har bedømt her.
+    var ratedCount: Int { verdicts.values.filter(\.isSeen).count }
     var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    func isLiked(_ title: Title) -> Bool { likedIDs.contains(title.id) }
+    func verdict(for title: Title) -> Verdict? { verdicts[title.id] }
 
     /// Genrerne i forslagene, mest hyppige først. Vises som chips man kan filtrere på.
     var genres: [String] {
@@ -66,10 +68,10 @@ final class SearchViewModel {
 
     // MARK: - Indlæsning
 
-    /// Henter brugerens eksisterende likes, så film han allerede har liket (fx i Swipe) vises som liket.
-    func loadLikes() async {
+    /// Henter brugerens eksisterende domme, så knappen viser dem.
+    func loadVerdicts() async {
         guard let signals = try? await signalService.allSignals() else { return }
-        likedIDs = Set(signals.filter { $0.kind == .like }.map(\.movieID))
+        verdicts = Dictionary(signals.map { ($0.movieID, $0.verdict) }, uniquingKeysWith: { newest, _ in newest })
     }
 
     /// Henter kendte film til browse-visningen (vises, når der ikke er søgt endnu).
@@ -110,29 +112,32 @@ final class SearchViewModel {
         posterURLs[title.id] = url
     }
 
-    // MARK: - Like
+    // MARK: - Dom
 
-    /// Liker filmen, eller fjerner et like igen. Opdaterer skærmen med det samme og retter tilbage ved fejl.
-    func toggleLike(_ title: Title) async {
+    /// Gemmer brugerens dom. Opdaterer skærmen med det samme og retter tilbage ved fejl.
+    func rate(_ title: Title, _ verdict: Verdict) async {
         errorMessage = nil
-        if likedIDs.contains(title.id) {
-            likedIDs.remove(title.id)
-            do {
-                try await signalService.deleteSignal(movieID: title.id)
-            } catch {
-                AppLog.shared.error("Search: remove like failed", error)
-                likedIDs.insert(title.id)
-                errorMessage = "Couldn't remove your like of \(title.title). Please try again."
-            }
-        } else {
-            likedIDs.insert(title.id)
-            do {
-                try await signalService.save(TasteSignal(movieID: title.id, kind: .like))
-            } catch {
-                AppLog.shared.error("Search: save like failed", error)
-                likedIDs.remove(title.id)
-                errorMessage = "Couldn't save your like of \(title.title). Please try again."
-            }
+        let previous = verdicts[title.id]
+        verdicts[title.id] = verdict
+        do {
+            try await signalService.save(TasteSignal(movieID: title.id, verdict: verdict))
+        } catch {
+            AppLog.shared.error("Search: save rating failed", error)
+            verdicts[title.id] = previous
+            errorMessage = "Couldn't save your rating of \(title.title). Please try again."
+        }
+    }
+
+    /// Fjerner brugerens dom igen.
+    func removeRating(_ title: Title) async {
+        errorMessage = nil
+        guard let previous = verdicts.removeValue(forKey: title.id) else { return }
+        do {
+            try await signalService.deleteSignal(movieID: title.id)
+        } catch {
+            AppLog.shared.error("Search: remove rating failed", error)
+            verdicts[title.id] = previous
+            errorMessage = "Couldn't remove your rating of \(title.title). Please try again."
         }
     }
 }

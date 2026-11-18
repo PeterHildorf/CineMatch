@@ -6,8 +6,10 @@
 import Foundation
 import Observation
 
-/// Brugeren går film igennem én ad gangen og svarer Like, Dislike, ½–5 stjerner eller "Haven't seen".
-/// Antons model lærer af likes, Mikkels af stjerner (`input`). Film med et svar bliver aldrig anbefalet.
+/// Brugeren går film igennem én ad gangen og giver hver en dom:
+/// Horrible (1) · Bad (2) · Great (3) · Fantastic (5) · Haven't seen (0). Se `Verdict`.
+///
+/// Alle domme gemmes – også "Haven't seen", så filmen ikke kommer igen. Sete film bliver aldrig anbefalet.
 @Observable
 @MainActor
 final class TasteViewModel {
@@ -17,28 +19,30 @@ final class TasteViewModel {
         case failed(String)
     }
 
-    /// Så mange likes (eller stjerner) skal der til, før modellen kender brugerens smag.
+    /// Så mange Great/Fantastic skal der til, før modellen kender brugerens smag.
     static let minimumLikes = TasteInput.minimumCount
+    /// Onboarding: så mange film (alle svar, også "Haven't seen") før "Your picks are ready".
+    static let onboardingSwipes = 10
 
     private(set) var state: State = .loading
     /// Film, brugeren ikke har svaret på endnu. Den første vises på kortet.
     private(set) var queue: [Title] = []
-    /// Brugerens svar pr. film-id.
-    private(set) var signals: [Int: TasteSignal.Kind] = [:]
-    /// Brugerens stjerner pr. film-id (kun film, han har givet stjerner).
-    private(set) var ratings: [Int: Double] = [:]
+    /// Brugerens dom pr. film-id.
+    private(set) var verdicts: [Int: Verdict] = [:]
     /// Plakater pr. film-id fra TMDB. Mangler en film, viser kortet en pladsholder.
     private(set) var posterURLs: [Int: URL] = [:]
     /// Vises kort, hvis et svar ikke kunne gemmes.
     var errorMessage: String?
 
-    /// Svarene i rækkefølge, så "Undo" kan gå et skridt tilbage. `signal == nil` betyder "Haven't seen".
-    private var history: [(title: Title, signal: TasteSignal?)] = []
+    /// Svarene i rækkefølge, så "Undo" kan gå et skridt tilbage.
+    private var history: [TasteSignal] = []
+    /// Filmene i `history`, så de kan lægges tilbage i køen.
+    private var historyTitles: [Int: Title] = [:]
 
     private let movieDataService: any MovieDataService
     private let tasteSignalService: any TasteSignalService
     private let mediaService: any TitleMediaService
-    /// Hvad den aktive model lærer af: likes (Anton) eller stjerner (Mikkel).
+    /// Hvad den aktive model lærer af. Styrer, hvad der tæller i fremskridtet.
     let input: TasteInput
 
     init(
@@ -54,14 +58,21 @@ final class TasteViewModel {
     }
 
     var current: Title? { queue.first }
-    var likeCount: Int { signals.values.filter { $0 == .like }.count }
-    var dislikeCount: Int { signals.values.filter { $0 == .dislike }.count }
+    /// Great + Fantastic.
+    var likeCount: Int { verdicts.values.filter(\.isPositive).count }
+    /// Alle sete film (Horrible til Fantastic).
+    var seenCount: Int { verdicts.values.filter(\.isSeen).count }
     var hasEnoughLikes: Bool { likeCount >= Self.minimumLikes }
-    var ratedCount: Int { ratings.count }
+    /// Alle svar, også "Haven't seen".
+    var answeredCount: Int { verdicts.count }
+    /// Onboarding er færdig: 10 svar, og nok Great/Fantastic til, at modellen kan anbefale.
+    var isReadyForPicks: Bool { answeredCount >= Self.onboardingSwipes && hasEnoughLikes }
     /// Det antal svar, den aktive model kan bruge.
-    var progressCount: Int { input == .likes ? likeCount : ratedCount }
+    var progressCount: Int { input == .likes ? likeCount : seenCount }
     var hasEnoughForRecommendations: Bool { progressCount >= TasteInput.minimumCount }
     var canUndo: Bool { !history.isEmpty }
+
+    func count(of verdict: Verdict) -> Int { verdicts.values.filter { $0 == verdict }.count }
 
     // MARK: - Indlæsning
 
@@ -73,19 +84,24 @@ final class TasteViewModel {
             async let loadedSignals = tasteSignalService.allSignals()
             let titles = try await loadedTitles
             let saved = try await loadedSignals
-            signals = Dictionary(saved.map { ($0.movieID, $0.kind) }, uniquingKeysWith: { newest, _ in newest })
-            ratings = Dictionary(
-                saved.compactMap { signal in signal.rating.map { (signal.movieID, $0) } },
-                uniquingKeysWith: { newest, _ in newest }
-            )
+            verdicts = Dictionary(saved.map { ($0.movieID, $0.verdict) }, uniquingKeysWith: { newest, _ in newest })
             // Film, brugeren allerede har svaret på, vises ikke igen.
-            queue = titles.filter { signals[$0.id] == nil }
+            queue = titles.filter { verdicts[$0.id] == nil }
             history = []
+            historyTitles = [:]
             state = .loaded
         } catch {
             AppLog.shared.error("Swipe: load failed", error)
             state = .failed("Couldn't load movies. Please try again.")
         }
+    }
+
+    /// Henter brugerens svar igen og fjerner film, der er bedømt et andet sted (fx i Search), fra bunken.
+    /// Bevarer "Undo"-historikken. Kaldes, når Swipe-fanen vises.
+    func syncAnswers() async {
+        guard state == .loaded, let saved = try? await tasteSignalService.allSignals() else { return }
+        verdicts = Dictionary(saved.map { ($0.movieID, $0.verdict) }, uniquingKeysWith: { newest, _ in newest })
+        queue.removeAll { verdicts[$0.id] != nil }
     }
 
     /// Henter plakaten til kortet, der vises nu, og de to næste, så de er klar, når brugeren swiper.
@@ -99,64 +115,45 @@ final class TasteViewModel {
 
     // MARK: - Svar
 
-    func like() async { await answer(TasteSignal(movieID: current?.id ?? 0, kind: .like)) }
-
-    func dislike() async { await answer(TasteSignal(movieID: current?.id ?? 0, kind: .dislike)) }
-
-    /// ½–5 stjerner. Gemmes som stjerner, og like/dislike udledes (3½+ = like, 2 og under = dislike).
-    func rate(_ stars: Double) async {
-        let clamped = min(max((stars * 2).rounded() / 2, 0.5), 5)
-        await answer(TasteSignal(movieID: current?.id ?? 0, kind: TasteSignal.kind(forStars: clamped), rating: clamped))
-    }
-
-    /// "Haven't seen it": filmen springes over og gemmes ikke.
-    func skip() {
+    /// Giver filmen på kortet en dom og viser den næste.
+    func rate(_ verdict: Verdict) async {
         guard let title = current else { return }
-        queue.removeFirst()
-        history.append((title, nil))
-        errorMessage = nil
-    }
-
-    /// Går et svar tilbage og viser filmen igen.
-    func undo() async {
-        guard let last = history.popLast() else { return }
-        queue.insert(last.title, at: 0)
-        errorMessage = nil
-        guard let signal = last.signal else { return }
-
-        signals[last.title.id] = nil
-        ratings[last.title.id] = nil
-        do {
-            try await tasteSignalService.deleteSignal(movieID: last.title.id)
-        } catch {
-            AppLog.shared.error("Swipe: undo failed", error)
-            signals[last.title.id] = signal.kind
-            ratings[last.title.id] = signal.rating
-            queue.removeAll { $0.id == last.title.id }
-            history.append(last)
-            errorMessage = "Couldn't undo. Please try again."
-        }
-    }
-
-    private func answer(_ signal: TasteSignal) async {
-        guard let title = current, title.id == signal.movieID else { return }
+        let signal = TasteSignal(movieID: title.id, verdict: verdict)
 
         // Opdatér skærmen med det samme ("optimistisk"), og ret tilbage, hvis det ikke kan gemmes.
         queue.removeFirst()
-        signals[title.id] = signal.kind
-        ratings[title.id] = signal.rating
-        history.append((title, signal))
+        verdicts[title.id] = verdict
+        history.append(signal)
+        historyTitles[title.id] = title
         errorMessage = nil
 
         do {
             try await tasteSignalService.save(signal)
         } catch {
             AppLog.shared.error("Swipe: save answer failed", error)
-            signals[title.id] = nil
-            ratings[title.id] = nil
-            history.removeAll { $0.title.id == title.id }
+            verdicts[title.id] = nil
+            history.removeAll { $0.movieID == title.id }
+            historyTitles[title.id] = nil
             queue.insert(title, at: 0)
             errorMessage = "Couldn't save your answer for \(title.title). Please try again."
+        }
+    }
+
+    /// Går et svar tilbage og viser filmen igen.
+    func undo() async {
+        guard let last = history.popLast(), let title = historyTitles.removeValue(forKey: last.movieID) else { return }
+        queue.insert(title, at: 0)
+        verdicts[title.id] = nil
+        errorMessage = nil
+        do {
+            try await tasteSignalService.deleteSignal(movieID: title.id)
+        } catch {
+            AppLog.shared.error("Swipe: undo failed", error)
+            verdicts[title.id] = last.verdict
+            queue.removeAll { $0.id == title.id }
+            history.append(last)
+            historyTitles[title.id] = title
+            errorMessage = "Couldn't undo. Please try again."
         }
     }
 }

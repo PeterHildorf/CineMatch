@@ -5,6 +5,23 @@
 > Opdateret 23/10: **onboarding er lavet om.** Brugeren vælger film, han kan lide (likes), i stedet for at give 1–5 stjerner. `taste_signals` erstatter `ratings`, så input passer direkte til Antons model (`recommend(liked_ids)`).
 > SQL: `supabase/migrations/0001_initial_schema.sql` + `0002_taste_signals.sql`
 
+> **Opdateret 18/11: én fælles skala (migration 0005).** Swipe, "Seen it" og Search bruger fem knapper.
+> Tallet i `taste_signals.rating` er modellernes input:
+>
+> | Knap | Værdi | `signal` |
+> |---|---|---|
+> | Haven't seen | 0 | `unseen` |
+> | Horrible | 1 | `dislike` |
+> | Bad | 2 | `dislike` |
+> | Great | 3 | `like` |
+> | Fantastic | 5 | `like` |
+>
+> - Der er bevidst ingen 4. "Haven't seen" (0) er **ikke** en bedømmelse: brug den ikke som input, og udeluk ikke filmen fra anbefalingerne.
+> - Mikkels model får alle sete film (1/2/3/5) som ratings. Antons nuværende model får Great/Fantastic som likes, med Fantastic først. Når Antons nye model tager hele skalaen, sendes tallet direkte.
+> - "Seen it" logger også dommen i `recommendation_feedback.score`. Se `recommendation_metrics_by_score`.
+> - Search og Swipe gemmer nu i samme bunke (`pipeline = 'swipe'`). Search picks er fjernet; `search`-rækker i Supabase bruges ikke længere.
+> - Rate (stjerner) og Star picks er fjernet fra appen. Mikkels pipeline (`stars`) findes stadig i koden, men er ikke koblet til UI'et.
+
 ## Overblik (variant A)
 
 1. I onboarding vælger brugeren film, han kan lide (og evt. film, der ikke er noget for ham). Appen gemmer dem i `taste_signals`.

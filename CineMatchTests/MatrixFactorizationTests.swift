@@ -166,14 +166,14 @@ struct MFServiceTests {
 
     private var appBundle: Bundle { Bundle(for: MockAuthService.self) }
 
-    private func ratings(_ ids: [Int], stars: Double = 4.5) -> [TasteSignal] {
-        ids.map { TasteSignal(movieID: $0, kind: TasteSignal.kind(forStars: stars), rating: stars) }
+    private func ratings(_ ids: [Int], _ verdict: Verdict = .great) -> [TasteSignal] {
+        ids.map { TasteSignal(movieID: $0, verdict: verdict) }
     }
 
     @Test func tooFewRatingsThrows() async {
-        // 4 ratings + mange likes uden stjerner: likes tæller ikke for Mikkels model.
+        // 4 sete film + 3 "Haven't seen": "Haven't seen" er ikke input til Mikkels model.
         let signals = MockTasteSignalService(signals: ratings([862, 8844, 15602, 31357])
-            + [278, 680, 550].map { TasteSignal(movieID: $0, kind: .like) })
+            + ratings([278, 680, 550], .notSeen))
         let service = MFRecommendationService(store: MFModelStore(bundle: appBundle), tasteSignalService: signals)
 
         await #expect(throws: RecommendationServiceError.tooFewRatings) {
@@ -181,15 +181,11 @@ struct MFServiceTests {
         }
     }
 
-    @Test func recommendsUnansweredMoviesWithReason() async throws {
-        // Samme ratings som referencecasen "mixed_ratings", hvor top 3 er 238, 240, 278.
-        let mixed: [(Int, Double)] = [(862, 5), (8844, 1), (15602, 4.5), (31357, 2), (11862, 3.5)]
+    @Test func recommendsUnseenMoviesWithReason() async throws {
+        // Hele skalaen: Fantastic 5, Horrible 1, Great 3, Bad 2, Fantastic 5.
+        let mixed: [(Int, Verdict)] = [(862, .fantastic), (8844, .horrible), (15602, .great), (31357, .bad), (11862, .fantastic)]
         let rated = mixed.map { $0.0 }
-        let liked = [238, 278]   // skal udelukkes, fordi de er besvaret (likes uden stjerner)
-        let signals = MockTasteSignalService(
-            signals: mixed.map { TasteSignal(movieID: $0.0, kind: TasteSignal.kind(forStars: $0.1), rating: $0.1) }
-                + liked.map { TasteSignal(movieID: $0, kind: .like) }
-        )
+        let signals = MockTasteSignalService(signals: mixed.map { TasteSignal(movieID: $0.0, verdict: $0.1) })
         let service = MFRecommendationService(store: MFModelStore(bundle: appBundle), tasteSignalService: signals)
 
         try await service.requestRecompute()
@@ -197,9 +193,9 @@ struct MFServiceTests {
 
         #expect(recommendations.count == 50)
         #expect(recommendations.map(\.rank) == Array(1...50))
-        #expect(Set(recommendations.map(\.movieID)).isDisjoint(with: rated + liked))
-        #expect(recommendations[0].movieID == 240, "The Godfather Part II er nr. 1, når 238 og 278 er udelukket")
+        #expect(Set(recommendations.map(\.movieID)).isDisjoint(with: rated))
         #expect(recommendations[0].reason == MFRecommendationService.reasonText)
+        #expect(await service.latestBatch()?.inputCount == 5)
     }
 
     @Test func movieDataUsesTMDBIdsAndOnboardingStarters() async throws {
@@ -215,9 +211,9 @@ struct MFServiceTests {
 }
 
 @MainActor
-struct StarRatingTasteTests {
+struct StarModelTasteTests {
 
-    @Test func starsAreSavedWithDerivedKind() async {
+    @Test func allSeenMoviesCountForStarModel() async {
         let signals = MockTasteSignalService()
         let viewModel = TasteViewModel(
             movieDataService: MockMovieDataService(),
@@ -226,43 +222,13 @@ struct StarRatingTasteTests {
         )
         await viewModel.load()
 
-        await viewModel.rate(4.5)   // Shawshank → like
-        await viewModel.rate(3.0)   // The Matrix → neutral
-        await viewModel.rate(1.5)   // Toy Story → dislike
+        await viewModel.rate(.fantastic)   // Shawshank
+        await viewModel.rate(.horrible)    // The Matrix
+        await viewModel.rate(.notSeen)     // Toy Story
 
-        #expect(signals.signals.map(\.rating) == [1.5, 3.0, 4.5])
-        #expect(signals.kindByMovieID == [318: .like, 2571: .neutral, 1: .dislike])
-        #expect(viewModel.ratedCount == 3)
-        #expect(viewModel.progressCount == 3)
+        #expect(signals.signals.map(\.score) == [0, 1, 5])
+        #expect(viewModel.seenCount == 2)
+        #expect(viewModel.progressCount == 2)
         #expect(viewModel.likeCount == 1)
-    }
-
-    @Test func likesWithoutStarsDoNotCountForStarModel() async {
-        let viewModel = TasteViewModel(
-            movieDataService: MockMovieDataService(),
-            tasteSignalService: MockTasteSignalService(),
-            input: .starRatings
-        )
-        await viewModel.load()
-
-        await viewModel.like()
-
-        #expect(viewModel.likeCount == 1)
-        #expect(viewModel.progressCount == 0)
-    }
-
-    @Test func undoRemovesRating() async {
-        let viewModel = TasteViewModel(
-            movieDataService: MockMovieDataService(),
-            tasteSignalService: MockTasteSignalService(),
-            input: .starRatings
-        )
-        await viewModel.load()
-
-        await viewModel.rate(5)
-        await viewModel.undo()
-
-        #expect(viewModel.ratedCount == 0)
-        #expect(viewModel.current?.id == 318)
     }
 }

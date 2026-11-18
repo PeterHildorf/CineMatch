@@ -7,16 +7,21 @@ import SwiftUI
 
 /// Hovedskærmen efter login.
 ///
-/// Først et onboarding-flow: streamingtjenester → stjerner (Mikkels model) → swipe (Antons model).
-/// Derefter fire faner, så de to modeller kan sammenlignes:
-/// "Rate" og "Star picks" (Mikkel) · "Swipe" og "Swipe picks" (Anton).
+/// Første gang: streamingtjenester → Swipe med en kort guide. Efter 10 film (og 5 Great/Fantastic)
+/// kommer "Your picks are ready" → Today, hvor de første anbefalinger regnes.
+/// Derefter (og ved alle senere åbninger) direkte til fanerne: Today · Swipe · Search.
+///
+/// Swipe og Search gemmer i samme bunke, så Today ændrer sig, hver gang brugeren bedømmer en film.
 struct MainTabView: View {
     enum Step: Equatable {
         case checking
         case services
-        case rating
         case swipe
         case done
+    }
+
+    enum AppTab: Hashable {
+        case today, swipe, search
     }
 
     let session: UserSession
@@ -24,66 +29,51 @@ struct MainTabView: View {
 
     // Ingen startværdi her: @State er en macro i iOS 27, så den sættes kun i init.
     @State private var step: Step
-    @State private var ratingViewModel: RatingViewModel
+    @State private var selectedTab: AppTab
     @State private var tasteViewModel: TasteViewModel
     @State private var searchViewModel: SearchViewModel
-    @State private var starPicksViewModel: RecommendationsViewModel
-    @State private var swipePicksViewModel: RecommendationsViewModel
-    @State private var searchPicksViewModel: RecommendationsViewModel
+    @State private var todayViewModel: RecommendationsViewModel
     @State private var servicesViewModel: StreamingServicesViewModel
     @State private var isShowingServices: Bool
+    /// "Your picks are ready" efter 10 film i onboarding.
+    @State private var isShowingPicksReady: Bool
+    /// Så popuppen kun kommer én gang, også hvis brugeren vælger "Keep swiping".
+    @State private var hasOfferedPicks: Bool
+    private let swipeSignals: any TasteSignalService
 
     init(container: AppContainer, session: UserSession, onSignOut: @escaping () -> Void) {
         self.session = session
         self.onSignOut = onSignOut
         step = .checking
+        selectedTab = .today
         isShowingServices = false
-        ratingViewModel = RatingViewModel(
-            movieDataService: container.stars.movieDataService,
-            signalService: container.stars.signalService,
-            mediaService: container.mediaService
-        )
+        isShowingPicksReady = false
+        hasOfferedPicks = false
+        swipeSignals = container.swipe.signalService
         tasteViewModel = TasteViewModel(
             movieDataService: container.swipe.movieDataService,
             tasteSignalService: container.swipe.signalService,
             mediaService: container.mediaService,
             input: .likes
         )
-        // Søgning har sin egen Anton-pipeline (egen like-bunke), adskilt fra Swipe.
+        // Søgning gemmer i samme bunke som Swipe, så Today også ændrer sig af søgninger.
         searchViewModel = SearchViewModel(
-            movieDataService: container.search.movieDataService,
-            signalService: container.search.signalService,
+            movieDataService: container.swipe.movieDataService,
+            signalService: container.swipe.signalService,
             mediaService: container.mediaService
         )
-        // Ingen "Seen it" og ingen målinger på Star picks endnu: det er ikke afgjort, hvordan like/dislike
-        // skal blive til stjerner. Visninger uden feedback ville se ud som 0 % seen-rate i sammenligningen.
-        starPicksViewModel = RecommendationsViewModel(
-            recommendationService: container.stars.recommendationService,
-            movieDataService: container.stars.movieDataService,
-            mediaService: container.mediaService,
-            preferencesService: container.preferencesService,
-            input: .starRatings,
-            title: "Star picks"
-        )
-        swipePicksViewModel = RecommendationsViewModel(
+        // Today: Antons model på Swipe-dommene. Ny pick hver dag, beregnes selv, når brugeren har bedømt mere.
+        todayViewModel = RecommendationsViewModel(
             recommendationService: container.swipe.recommendationService,
             movieDataService: container.swipe.movieDataService,
             mediaService: container.mediaService,
             preferencesService: container.preferencesService,
             signalService: container.swipe.signalService,
             eventLogger: container.swipe.eventLogger,
+            dailyPicks: DailyPickStore(key: "dailyPick.swipe.\(session.userID)"),
+            autoRecompute: true,
             input: .likes,
-            title: "Swipe picks"
-        )
-        searchPicksViewModel = RecommendationsViewModel(
-            recommendationService: container.search.recommendationService,
-            movieDataService: container.search.movieDataService,
-            mediaService: container.mediaService,
-            preferencesService: container.preferencesService,
-            signalService: container.search.signalService,
-            eventLogger: container.search.eventLogger,
-            input: .likes,
-            title: "Search picks"
+            title: "Recommendations"
         )
         servicesViewModel = StreamingServicesViewModel(preferencesService: container.preferencesService)
     }
@@ -93,34 +83,32 @@ struct MainTabView: View {
             switch step {
             case .checking:
                 ProgressView()
-                    .task { step = await servicesViewModel.needsSetup() ? .services : .rating }
+                    .task { step = await firstStep() }
             case .services:
                 StreamingServicesView(viewModel: servicesViewModel) {
                     servicesChanged()
-                    step = .rating
-                }
-            case .rating:
-                NavigationStack {
-                    RatingView(viewModel: ratingViewModel)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Continue") { step = .swipe }
-                                    .disabled(!ratingViewModel.hasEnoughRatings)
-                            }
-                        }
+                    Task { step = await hasFinishedSwipe() ? .done : .swipe }
                 }
             case .swipe:
                 NavigationStack {
-                    TasteView(viewModel: tasteViewModel)
+                    TasteView(viewModel: tasteViewModel, isOnboarding: true, finishedHint: "Tap Done to see your picks.")
                         .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Back") { step = .rating }
-                            }
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { step = .done }
+                                Button("Done", action: showPicks)
                                     .disabled(!tasteViewModel.hasEnoughLikes)
                             }
                         }
+                }
+                .onChange(of: tasteViewModel.answeredCount) {
+                    guard tasteViewModel.isReadyForPicks, !hasOfferedPicks else { return }
+                    hasOfferedPicks = true
+                    isShowingPicksReady = true
+                }
+                .alert("Your picks are ready", isPresented: $isShowingPicksReady) {
+                    Button("Show my picks", action: showPicks)
+                    Button("Keep swiping", role: .cancel) {}
+                } message: {
+                    Text("We know enough about your taste to find movies for you. The more you rate, the sharper your picks get.")
                 }
             case .done:
                 tabs
@@ -133,52 +121,70 @@ struct MainTabView: View {
     }
 
     private var tabs: some View {
-        TabView {
-            Tab("Rate", systemImage: "star") {
-                NavigationStack {
-                    RatingView(viewModel: ratingViewModel)
-                        .toolbar { accountMenu }
+        tabView
+            // Svar i én fane skal ses i de andre: Today regner nyt, Swipe fjerner film bedømt i Search.
+            .onChange(of: selectedTab) { _, tab in
+                Task {
+                    switch tab {
+                    case .today: await todayViewModel.refresh()
+                    case .swipe: await tasteViewModel.syncAnswers()
+                    case .search: await searchViewModel.loadVerdicts()
+                    }
                 }
             }
-            Tab("Star picks", systemImage: "sparkles") {
+    }
+
+    private var tabView: some View {
+        TabView(selection: $selectedTab) {
+            // Ingen overskrift eller kontomenu her: fanen viser navnet, og menuen findes i Swipe og Search.
+            Tab("Recommendations", systemImage: "sparkles", value: .today) {
                 NavigationStack {
-                    RecommendationsView(viewModel: starPicksViewModel)
-                        .toolbar { accountMenu }
+                    TodayView(
+                        viewModel: todayViewModel,
+                        onSwipeMore: { selectedTab = .swipe },
+                        onSearch: { selectedTab = .search }
+                    )
                 }
             }
-            Tab("Swipe", systemImage: "hand.thumbsup") {
+            Tab("Swipe", systemImage: "rectangle.stack", value: .swipe) {
                 NavigationStack {
                     TasteView(viewModel: tasteViewModel)
                         .toolbar { accountMenu }
                 }
             }
-            Tab("Swipe picks", systemImage: "rectangle.stack") {
-                NavigationStack {
-                    RecommendationsView(viewModel: swipePicksViewModel)
-                        .toolbar { accountMenu }
-                }
-            }
-            Tab("Search", systemImage: "magnifyingglass") {
+            Tab("Search", systemImage: "magnifyingglass", value: .search) {
                 NavigationStack {
                     SearchView(viewModel: searchViewModel)
-                        .toolbar { accountMenu }
-                }
-            }
-            Tab("Search picks", systemImage: "wand.and.stars") {
-                NavigationStack {
-                    RecommendationsView(viewModel: searchPicksViewModel)
                         .toolbar { accountMenu }
                 }
             }
         }
     }
 
+    // MARK: - Flow
+
+    /// Onboarding færdig → Today, som regner de første anbefalinger.
+    private func showPicks() {
+        selectedTab = .today
+        step = .done
+    }
+
+    /// Tjenester først, hvis de mangler. Kender modellen allerede brugerens smag, går vi direkte til fanerne.
+    private func firstStep() async -> Step {
+        if await servicesViewModel.needsSetup() { return .services }
+        return await hasFinishedSwipe() ? .done : .swipe
+    }
+
+    /// Nok Great/Fantastic i Swipe til, at Today kan vise anbefalinger.
+    private func hasFinishedSwipe() async -> Bool {
+        let signals = (try? await swipeSignals.allSignals()) ?? []
+        return signals.likedMovieIDs.count >= TasteViewModel.minimumLikes
+    }
+
     /// Alle resultatsider skal vise de nye tjenester.
     private func servicesChanged() {
         Task {
-            await starPicksViewModel.preferencesChanged()
-            await swipePicksViewModel.preferencesChanged()
-            await searchPicksViewModel.preferencesChanged()
+            await todayViewModel.preferencesChanged()
         }
     }
 
@@ -199,5 +205,5 @@ struct MainTabView: View {
 }
 
 #Preview {
-    MainTabView(container: .mock(signedIn: true), session: MockAuthService.sampleSession) {}
+    MainTabView(container: .demo(), session: MockAuthService.sampleSession) {}
 }
