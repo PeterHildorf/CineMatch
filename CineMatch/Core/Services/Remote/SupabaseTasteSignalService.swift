@@ -99,7 +99,11 @@ final class SupabaseTasteSignalService: TasteSignalService {
     /// `rating` er skalaens tal. Gamle rækker uden tal (swipe før 0005) oversættes: like → Great, dislike → Bad.
     static func signal(from row: Row) -> TasteSignal? {
         let verdict: Verdict?
-        if let rating = row.rating {
+        if row.rating == 3, row.signal == TasteSignal.Kind.like.rawValue {
+            // Pre-0006 Great was stored as 3 + "like". A real Neutral is 3 + "neutral".
+            // This also makes read-through legacy opinions safe before the server migration runs.
+            verdict = .great
+        } else if let rating = row.rating {
             verdict = Verdict(storedScore: rating)
         } else {
             switch TasteSignal.Kind(rawValue: row.signal) {

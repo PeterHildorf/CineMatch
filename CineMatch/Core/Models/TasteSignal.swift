@@ -29,7 +29,7 @@ struct TasteSignal: Codable, Hashable, Sendable {
         case feedback
     }
 
-    /// Film-id fra den model, appen bruger (TMDB-id med Mikkels model, Letterboxd-id med Antons).
+    /// TMDB ID at the active app boundary. The compatibility adapter translates legacy Letterboxd rows.
     let movieID: Int
     let verdict: Verdict
     var source: Source = .onboarding

@@ -1,0 +1,125 @@
+{
+  "format": "cinematch.conditional-neighbors",
+  "schemaVersion": 1,
+  "modelType": "positive_conditional_neighbors",
+  "modelVersion": "synthetic-test-fixture-only",
+  "sourceModelSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tmdbIdentityVerified": true,
+  "scoring": {
+    "aggregation": "positive",
+    "ratingCenter": 3,
+    "fallback": "training_rating_count",
+    "tieBreak": "original_catalogue_order"
+  },
+  "movies": [
+    {
+      "movieLensId": 10,
+      "tmdbId": 100,
+      "eligible": true,
+      "title": "Fixture 10",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 8
+    },
+    {
+      "movieLensId": 20,
+      "tmdbId": 101,
+      "eligible": true,
+      "title": "Fixture 20",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 7
+    },
+    {
+      "movieLensId": 30,
+      "tmdbId": 102,
+      "eligible": true,
+      "title": "Fixture 30",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 7
+    },
+    {
+      "movieLensId": 40,
+      "tmdbId": 103,
+      "eligible": true,
+      "title": "Fixture 40",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 5
+    },
+    {
+      "movieLensId": 50,
+      "tmdbId": 104,
+      "eligible": true,
+      "title": "Fixture 50",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 4
+    },
+    {
+      "movieLensId": 60,
+      "tmdbId": 105,
+      "eligible": false,
+      "title": "Fixture 60",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 9
+    },
+    {
+      "movieLensId": 70,
+      "tmdbId": 106,
+      "eligible": true,
+      "title": "Fixture 70",
+      "year": 2000,
+      "genres": [
+        "Drama"
+      ],
+      "trainingCount": 3
+    }
+  ],
+  "legacyMappings": [
+    {
+      "letterboxdId": 900100,
+      "tmdbId": 100
+    }
+  ],
+  "neighborOffsets": [
+    0,
+    3,
+    4,
+    5,
+    5,
+    5,
+    6,
+    6
+  ],
+  "neighborIndices": [
+    1,
+    2,
+    5,
+    2,
+    0,
+    4
+  ],
+  "neighborWeights": [
+    0.25,
+    0.25,
+    0.8999999761581421,
+    0.5,
+    0.125,
+    0.75
+  ]
+}

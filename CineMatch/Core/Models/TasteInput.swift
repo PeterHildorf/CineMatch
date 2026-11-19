@@ -5,11 +5,10 @@
 
 /// Hvad den aktive model lærer af. Bestemmer vejledningsteksten og hvornår der er nok svar.
 ///
-/// Begge modeller får samme skala (`Verdict`). Forskellen er, hvad de kan bruge i dag:
-/// - Antons model tager kun en liste af likes, så kun Great og Fantastic tæller.
-/// - Mikkels model tager alle sete film med deres tal (1–5).
+/// All models receive the same verdict scale. The active conditional model requires five
+/// supported Great/Fantastic answers for onboarding and excludes every seen film.
 enum TasteInput: Equatable, Sendable {
-    /// Antons model: Great/Fantastic.
+    /// Five positive opinions, used by the active conditional model's onboarding policy.
     case likes
     /// Mikkels model: alle sete film.
     case starRatings

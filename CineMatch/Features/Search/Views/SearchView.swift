@@ -5,8 +5,7 @@
 
 import SwiftUI
 
-/// Søg efter film i Antons on-device-katalog og bedømm dem, du har set (samme skala som Swipe).
-/// Du kan søge på titel, instruktør eller skuespiller – eller browse på genre, hvis du er i tvivl.
+/// Search the verified model catalogue by title, or browse by genre, and use the same verdicts as Swipe.
 /// Dommene lander i samme bunke som Swipe, så Today ændrer sig med det samme.
 struct SearchView: View {
     @Bindable var viewModel: SearchViewModel
@@ -14,7 +13,7 @@ struct SearchView: View {
     var body: some View {
         content
             .navigationTitle("Search")
-            .searchable(text: $viewModel.query, prompt: "Title, director or actor")
+            .searchable(text: $viewModel.query, prompt: "Movie title")
             // Kører søgningen, hver gang teksten ændrer sig. `task(id:)` afbryder den forrige søgning.
             .task(id: viewModel.query) { await viewModel.runSearch() }
             .task {
@@ -46,7 +45,7 @@ struct SearchView: View {
             ContentUnavailableView {
                 Label("Find movies you love", systemImage: "magnifyingglass")
             } description: {
-                Text("Search by title, director or actor, then rate the movies you've seen.")
+                Text("Search by title, then rate the movies you've seen.")
             }
         } else {
             VStack(spacing: 0) {

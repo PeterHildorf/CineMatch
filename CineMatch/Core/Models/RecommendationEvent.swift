@@ -9,11 +9,12 @@ import Foundation
 
 /// Hvilken af appens tre anbefalingsrækker det handler om. Svarer til kolonnen `pipeline` i Supabase.
 nonisolated enum PipelineID: String, Codable, Sendable {
-    /// Stjerner → Mikkels model.
+    /// Canonical TMDB opinions/events. Historical name retained for database compatibility.
+    /// The batch modelVersion distinguishes conditional neighbours from earlier MF runs.
     case stars
-    /// Swipe-likes → Antons model.
+    /// Legacy Letterboxd opinions/events from Anton's Swipe model.
     case swipe
-    /// Søge-likes → Antons model, egen like-bunke.
+    /// Legacy Letterboxd opinions/events from the separate Search pipeline.
     case search
 }
 

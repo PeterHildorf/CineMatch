@@ -51,7 +51,10 @@ struct MainTabView: View {
         swipeSignals = container.swipe.signalService
         let preferencesService = container.preferencesService(for: session.userID)
         // Delt mellem Today og Profile, så "Start fresh" også nulstiller dagens pick og streak.
-        let dailyPicks = DailyPickStore(key: "dailyPick.swipe.\(session.userID)")
+        let dailyPicks = DailyPickStore(
+            key: "dailyPick.\(container.swipe.dailyPickNamespace).\(session.userID)",
+            legacyKey: container.swipe.legacyDailyPickNamespace.map { "dailyPick.\($0).\(session.userID)" }
+        )
         tasteViewModel = TasteViewModel(
             movieDataService: container.swipe.movieDataService,
             tasteSignalService: container.swipe.signalService,
@@ -64,7 +67,7 @@ struct MainTabView: View {
             signalService: container.swipe.signalService,
             mediaService: container.mediaService
         )
-        // Today: Antons model på Swipe-dommene. Ny pick hver dag, beregnes selv, når brugeren har bedømt mere.
+        // Today shares the supported TMDB catalogue and numeric opinions with Swipe and Search.
         todayViewModel = RecommendationsViewModel(
             recommendationService: container.swipe.recommendationService,
             movieDataService: container.swipe.movieDataService,
@@ -78,10 +81,10 @@ struct MainTabView: View {
             title: "Recommendations"
         )
         servicesViewModel = StreamingServicesViewModel(preferencesService: preferencesService)
-        // "Start fresh" sletter begge bunker (stjernemodellen er ikke i UI'et, men skal heller ikke huske noget).
+        // The active adapter resets canonical opinions and both legacy stores together.
         profileViewModel = ProfileViewModel(
             email: session.email,
-            signalServices: [container.swipe.signalService, container.stars.signalService],
+            signalServices: [container.swipe.signalService],
             dailyPicks: dailyPicks
         )
     }

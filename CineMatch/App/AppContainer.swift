@@ -8,11 +8,9 @@ import Supabase
 
 /// Det ENESTE sted, hvor services oprettes. Views og ViewModels får dem injiceret.
 ///
-/// Alle bedømmelser bruger samme skala (`Verdict`: 0–5). Pipelines:
-/// - `swipe`: Swipe, Search og Today → Antons model. Film-id er Letterboxd-id.
-///   Swipe og Search gemmer i samme bunke, så Today ændrer sig, uanset hvor brugeren bedømmer.
-/// - `stars`: Mikkels model (TMDB-id). Ikke i UI'et lige nu (Rate og Star picks er fjernet).
-///   TODO: Fodr den med swipe-dommene oversat Letterboxd-id → TMDB-id, så Today kan skifte model.
+/// Swipe, Search, onboarding and Today share the verified TMDB catalogue and conditional-neighbour model.
+/// New opinions use the existing TMDB `stars` storage namespace. Legacy Letterboxd opinions are
+/// translated on read through verified mappings; their original records remain intact.
 @MainActor
 final class AppContainer {
     /// Én models data: film, brugerens svar og anbefalinger.
@@ -22,6 +20,8 @@ final class AppContainer {
         let recommendationService: any RecommendationService
         /// Logger visninger og "Seen it", så modellens præcision kan måles.
         var eventLogger: any RecommendationEventLogger = MockRecommendationEventLogger()
+        var dailyPickNamespace: String = "swipe"
+        var legacyDailyPickNamespace: String? = nil
     }
 
     let authService: any AuthService
@@ -56,6 +56,12 @@ final class AppContainer {
         makePreferencesService(userID)
     }
 
+    /// Results belong to the current session. Clear them before another user can open Today.
+    func clearRecommendations() async {
+        await swipe.recommendationService.clearRecommendations()
+        await stars.recommendationService.clearRecommendations()
+    }
+
     /// Rigtige services, hvis Secrets.plist og modelfilerne findes – ellers mocks.
     static func live() -> AppContainer {
         // TMDB-nøglen ligger i Secrets.plist. Mangler den, vises pladsholdere i stedet for plakater.
@@ -65,20 +71,26 @@ final class AppContainer {
         let client = SupabaseConfig.load().map { SupabaseClient(supabaseURL: $0.url, supabaseKey: $0.anonKey) }
         let authService: any AuthService = client.map { SupabaseAuthService(client: $0) } ?? MockAuthService()
 
-        let antonStore: ModelStore? = ModelStore.isAvailable() ? ModelStore() : nil
+        let conditionalStore = ConditionalNeighborModelStore()
+        let canonicalStorage = Storage(client: client, pipeline: .stars)
+        let legacySwipe = Storage(client: client, pipeline: .swipe)
+        let legacySearch = Storage(client: client, pipeline: .search)
 
         // Så loggen viser, hvilke rigtige services og modeller appen kører med.
         AppLog.shared.info([
             "Supabase: \(client == nil ? "missing (mocks)" : "configured")",
             "TMDB: \(mediaService is TMDBMediaService ? "configured" : "missing (placeholders)")",
-            "Anton model: \(antonStore == nil ? "missing (mocks)" : "available")",
-            "MF model: \(MFModelStore.isAvailable() ? "available" : "missing (mocks)")",
+            "Active model: conditional neighbours · \(ConditionalNeighborModelStore.isAvailable() ? "bundle available" : "bundle missing; recommendations unavailable")",
         ].joined(separator: " · "))
 
         let container = AppContainer(
             authService: authService,
-            stars: starPipeline(storage: Storage(client: client, pipeline: .stars)),
-            swipe: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .swipe)),
+            stars: starPipeline(storage: canonicalStorage),
+            swipe: conditionalPipeline(
+                store: conditionalStore,
+                canonical: canonicalStorage,
+                legacy: [legacySwipe.signals, legacySearch.signals]
+            ),
             mediaService: mediaService,
             // Supabase: valget følger brugeren. Uden Supabase: lokalt, men stadig pr. bruger.
             makePreferencesService: { userID -> any PreferencesService in
@@ -127,24 +139,22 @@ final class AppContainer {
         )
     }
 
-    /// Én Anton-pipeline med sin egen like-bunke. Får modellen udefra, så flere pipelines (swipe, søgning)
-    /// kan dele samme indlæste modelfil, men stadig have hvert sit input og hvert sit resultat.
-    /// `store == nil` (modelfilen mangler) → falske anbefalinger.
-    private static func antonPipeline(store: ModelStore?, storage: Storage) -> ModelPipeline {
-        let signals = storage.signals
-        guard let store else {
-            return ModelPipeline(
-                movieDataService: LocalJSONMovieDataService(),
-                signalService: signals,
-                recommendationService: MockRecommendationService(delay: .seconds(2)),
-                eventLogger: storage.eventLogger
-            )
-        }
+    /// Missing or invalid model data fails closed. Demo data is only used in explicit demo mode.
+    private static func conditionalPipeline(
+        store: ConditionalNeighborModelStore,
+        canonical: Storage,
+        legacy: [any TasteSignalService]
+    ) -> ModelPipeline {
+        let signals = SupportedCatalogueTasteSignalService(
+            store: store, canonical: canonical.signals, legacy: legacy
+        )
         return ModelPipeline(
-            movieDataService: OnDeviceMovieDataService(store: store),
+            movieDataService: ConditionalNeighborMovieDataService(store: store),
             signalService: signals,
-            recommendationService: OnDeviceRecommendationService(store: store, tasteSignalService: signals),
-            eventLogger: storage.eventLogger
+            recommendationService: ConditionalNeighborRecommendationService(store: store, tasteSignalService: signals),
+            eventLogger: canonical.eventLogger,
+            dailyPickNamespace: "tmdb.knn.v1",
+            legacyDailyPickNamespace: "swipe"
         )
     }
 

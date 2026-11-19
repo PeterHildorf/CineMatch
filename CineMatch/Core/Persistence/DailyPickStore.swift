@@ -30,11 +30,31 @@ final class DailyPickStore {
     private var stored: Stored
 
     /// `key` skal være forskellig pr. pipeline (og pr. bruger, hvis flere logger ind på samme telefon).
-    init(defaults: UserDefaults = .standard, key: String, calendar: Calendar = .current) {
+    /// Ved skift af film-id-system kan `legacyKey` bevare streaken én gang.
+    /// Filmreferencer og passes kopieres ikke: gamle Letterboxd-id'er er ikke TMDB-id'er.
+    init(
+        defaults: UserDefaults = .standard,
+        key: String,
+        calendar: Calendar = .current,
+        legacyKey: String? = nil
+    ) {
         self.defaults = defaults
         self.key = key
         self.calendar = calendar
-        stored = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(Stored.self, from: $0) } ?? Stored()
+        let currentData = defaults.data(forKey: key)
+        stored = currentData.flatMap { try? JSONDecoder().decode(Stored.self, from: $0) } ?? Stored()
+        let migrationKey = "\(key).legacyProgressMigrated"
+        if let legacyKey, legacyKey != key, !defaults.bool(forKey: migrationKey) {
+            if currentData == nil,
+               let data = defaults.data(forKey: legacyKey),
+               let previous = try? JSONDecoder().decode(Stored.self, from: data) {
+                stored.answeredDays = previous.answeredDays
+                save()
+            }
+            // Keep the marker after reset, otherwise an old streak could return
+            // on the next launch. The legacy data remains untouched.
+            defaults.set(true, forKey: migrationKey)
+        }
     }
 
     /// Dagens pick blandt `candidates` (bedste først). `nil`, hvis der ingen kandidater er.

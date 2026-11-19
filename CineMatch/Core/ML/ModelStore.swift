@@ -5,11 +5,6 @@
 
 import Foundation
 
-nonisolated enum ModelStoreError: Error, Equatable {
-    case fileNotFound
-    case invalidData
-}
-
 /// Indlæser `cinematch_model.json` én gang og deler den mellem services.
 /// Et `actor`, så den store fil læses uden for main thread, og kun én gang.
 actor ModelStore {

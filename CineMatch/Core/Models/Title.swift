@@ -5,10 +5,10 @@
 
 /// En film, brugeren kan bedømme eller få anbefalet.
 struct Title: Codable, Hashable, Identifiable, Sendable {
-    /// Film-id. Letterboxd-id, når filmen kommer fra modelfilen (MovieLens-id i den gamle liste og i mocks).
+    /// TMDB movie ID in the active verified catalogue. Legacy/demo services may use other namespaces.
     let id: Int
     /// TMDB-id. Bruges til plakater og streamingtjenester (`TMDBMediaService`).
-    /// `nil` for film fra modelfilen indtil videre. Så søges de frem på titel og år.
+    /// Always populated in the active catalogue; legacy/demo titles can fall back to title/year lookup.
     let tmdbId: Int?
     let title: String
     let year: Int

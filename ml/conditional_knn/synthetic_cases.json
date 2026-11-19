@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "modelVersion": "synthetic-test-fixture-only",
+  "scoreTolerance": 1e-10,
+  "fixtureOnly": true,
+  "cases": [
+    {
+      "name": "direction_ties_zero_tail",
+      "ratings": [
+        {
+          "tmdbId": 100,
+          "stars": 5
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 1,
+        "positiveRatingsUsed": 1,
+        "personalized": true,
+        "results": [
+          {
+            "tmdbId": 101,
+            "score": 0.5
+          },
+          {
+            "tmdbId": 102,
+            "score": 0.5
+          },
+          {
+            "tmdbId": 103,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "weighted_sum",
+      "ratings": [
+        {
+          "tmdbId": 100,
+          "stars": 4
+        },
+        {
+          "tmdbId": 101,
+          "stars": 5
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 2,
+        "positiveRatingsUsed": 2,
+        "personalized": true,
+        "results": [
+          {
+            "tmdbId": 102,
+            "score": 1.25
+          },
+          {
+            "tmdbId": 103,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "fallback_counts_tie",
+      "ratings": [],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 0,
+        "positiveRatingsUsed": 0,
+        "personalized": false,
+        "results": [
+          {
+            "tmdbId": 100,
+            "score": 8.0
+          },
+          {
+            "tmdbId": 101,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 102,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 103,
+            "score": 5.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 4.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "negative_only",
+      "ratings": [
+        {
+          "tmdbId": 100,
+          "stars": 1
+        },
+        {
+          "tmdbId": 103,
+          "stars": 2
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 2,
+        "positiveRatingsUsed": 0,
+        "personalized": false,
+        "results": [
+          {
+            "tmdbId": 101,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 102,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 4.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "isolated_positive_fallback",
+      "ratings": [
+        {
+          "tmdbId": 106,
+          "stars": 5
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 1,
+        "positiveRatingsUsed": 1,
+        "personalized": false,
+        "results": [
+          {
+            "tmdbId": 100,
+            "score": 8.0
+          },
+          {
+            "tmdbId": 101,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 102,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 103,
+            "score": 5.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 4.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "ineligible_and_unknown_ignored",
+      "ratings": [
+        {
+          "tmdbId": 105,
+          "stars": 5
+        },
+        {
+          "tmdbId": 999,
+          "stars": 4
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 0,
+        "positiveRatingsUsed": 0,
+        "personalized": false,
+        "results": [
+          {
+            "tmdbId": 100,
+            "score": 8.0
+          },
+          {
+            "tmdbId": 101,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 102,
+            "score": 7.0
+          },
+          {
+            "tmdbId": 103,
+            "score": 5.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 4.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "exclude_positive_hits",
+      "ratings": [
+        {
+          "tmdbId": 100,
+          "stars": 5
+        }
+      ],
+      "excluding": [
+        101,
+        102
+      ],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 1,
+        "positiveRatingsUsed": 1,
+        "personalized": true,
+        "results": [
+          {
+            "tmdbId": 103,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "fractional_positive",
+      "ratings": [
+        {
+          "tmdbId": 100,
+          "stars": 3.5
+        }
+      ],
+      "excluding": [],
+      "limit": 20,
+      "expected": {
+        "ratingsUsed": 1,
+        "positiveRatingsUsed": 1,
+        "personalized": true,
+        "results": [
+          {
+            "tmdbId": 101,
+            "score": 0.125
+          },
+          {
+            "tmdbId": 102,
+            "score": 0.125
+          },
+          {
+            "tmdbId": 103,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 104,
+            "score": 0.0
+          },
+          {
+            "tmdbId": 106,
+            "score": 0.0
+          }
+        ]
+      }
+    }
+  ]
+}

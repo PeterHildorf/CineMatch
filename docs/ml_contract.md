@@ -1,163 +1,58 @@
-# CineMatch – kontrakt mellem app og ML-service
+# CineMatch app and model contract
 
-> Udkast 13/10 – skal godkendes af ML-teamet.
-> Opdateret 23/10: **al tekst i appen er på engelsk**, også `reason`.
-> Opdateret 23/10: **onboarding er lavet om.** Brugeren vælger film, han kan lide (likes), i stedet for at give 1–5 stjerner. `taste_signals` erstatter `ratings`, så input passer direkte til Antons model (`recommend(liked_ids)`).
-> SQL: `supabase/migrations/0001_initial_schema.sql` + `0002_taste_signals.sql`
+Updated 19 November 2026. The active app uses the selected conditional-neighbour model locally. Swipe, Search, onboarding and Today share one verified TMDB catalogue. There is no recommendation server or `/recommend` endpoint in this flow.
 
-> **Opdateret 18/11: én fælles skala (migration 0005).** Swipe, "Seen it" og Search bruger fem knapper.
-> Tallet i `taste_signals.rating` er modellernes input:
->
-> | Knap | Værdi | `signal` |
-> |---|---|---|
-> | Haven't seen | 0 | `unseen` |
-> | Horrible | 1 | `dislike` |
-> | Bad | 2 | `dislike` |
-> | Great | 3 | `like` |
-> | Fantastic | 5 | `like` |
->
-> - Der er bevidst ingen 4. "Haven't seen" (0) er **ikke** en bedømmelse: brug den ikke som input, og udeluk ikke filmen fra anbefalingerne.
-> - Mikkels model får alle sete film (1/2/3/5) som ratings. Antons nuværende model får Great/Fantastic som likes, med Fantastic først. Når Antons nye model tager hele skalaen, sendes tallet direkte.
-> - "Seen it" logger også dommen i `recommendation_feedback.score`. Se `recommendation_metrics_by_score`.
-> - Search og Swipe gemmer nu i samme bunke (`pipeline = 'swipe'`). Search picks er fjernet; `search`-rækker i Supabase bruges ikke længere.
-> - Rate (stjerner) og Star picks er fjernet fra appen. Mikkels pipeline (`stars`) findes stadig i koden, men er ikke koblet til UI'et.
+## Model and catalogue
 
-## Overblik (variant A)
+The source is `cm-20261119-full-knn-conditional`, trained on the fixed 9,021-movie MovieLens catalogue. `CineMatch/Core/Resources/cinematch_knn.json` contains the frozen graph, training counts, original graph positions and a separate eligibility flag for each movie. See `ml/conditional_knn/INTEGRATION.md` and its export manifest for the current supported count and checksums.
 
-1. I onboarding vælger brugeren film, han kan lide (og evt. film, der ikke er noget for ham). Appen gemmer dem i `taste_signals`.
-2. Appen kalder `POST /recommend` med brugerens access token ("Get recommendations").
-3. ML-servicen læser brugerens `taste_signals` fra Supabase.
-4. ML-servicen kører modellen med brugerens likes og skriver top 5 til `recommendations`.
-5. Appen læser `recommendations` og viser dem.
+Only movies with verified TMDB movie identities and unambiguous mappings are eligible. Missing, duplicate, unavailable, mismatched and uncertain mappings are excluded from the app catalogue. Temporary network failures prevent export rather than being classified as missing films.
 
-Appen laver ingen beregninger. ML-servicen gemmer intet selv.
+All active public movie IDs are TMDB IDs. The model retains MovieLens IDs and graph positions internally. The catalogue supplies the conversion. Removing an app-visible film never renumbers the frozen graph.
 
-## Sprog
+`ConditionalNeighborMovieDataService` supplies the same eligible set to onboarding/Swipe, full-catalogue Search and recommendation title lookup. The scorer checks membership again and filters outputs before taking the requested number of results. A raw TMDB search result cannot become model input without catalogue membership.
 
-Appen er på engelsk. Al tekst, som ML-servicen leverer og appen viser direkte (`reason`, `message`), skal derfor være på engelsk.
+## Numeric opinions
 
-## Fælles ID
+| Button | Stored rating | Model weight | Excluded as watched |
+| --- | ---: | ---: | --- |
+| Haven't seen | 0 | Not a rating | No |
+| Horrible | 1 | 0 | Yes |
+| Bad | 2 | 0 | Yes |
+| Neutral | 3 | 0 | Yes |
+| Great | 4 | 1 | Yes |
+| Fantastic | 5 | 2 | Yes |
 
-`movie_id` er **altid MovieLens `movieId`** (heltal). Datasættet er `merged_datasets.csv` (MovieLens + Letterboxd, 71.828 film).
-Det skal kobles på `tmdbId`/`imdbId` i stedet for titel. Se `docs/ml_team_brief.md`.
+The app requires five supported Great/Fantastic opinions before showing personalised results. The scorer itself supports sparse inputs and popularity fallback. Every supported seen opinion is passed with its numeric value; there is no 25-like cap. For legacy records, `rating=3` with `signal=like` means old Great, while `rating=3` with `signal=neutral` stays Neutral.
 
-Antons model bruger internt Letterboxd `id`. ML-servicen oversætter `movieId` ↔ Letterboxd `id` begge veje. Appen ser kun `movieId`.
-Indekset bør kun bygges over film, der har et `movieId`, så alt, modellen anbefaler, kan slås op i `movies`.
+## Ranking
 
-Onboardingens plakatgitter viser ca. 40 **varierede** film (forskellige genrer og årtier, ikke kun blockbusters) fra `CineMatch/Core/Resources/movielens_titles.json`.
-Brugeren kan også søge efter sine egne favoritter i hele `movies`. **Alle film i gitteret skal findes i modellens indeks.**
+For each candidate, sum `max(rating - 3, 0) * stored directed neighbour weight` over the accepted ratings. Keep zero-score candidates. If the complete original score vector is zero, use training rating counts before applying watched and eligibility filters. Sort by descending score and break ties by original graph position.
 
-## Tabeller
+Do not add quality bonuses, symmetrical negative weights, title deduplication or extra popularity blends. Those would change the selected model. Scores are raw ranking values, not percentages or predicted star ratings. The English explanation is “Based on your ratings.”
 
-| Tabel | Skrives af | Læses af | Indhold |
-|---|---|---|---|
-| `movies` | ML (import af datasættet) | appen, ML | `movie_id`, `tmdb_id`, `imdb_id`, `title`, `year`, `genres`, `description`, `runtime_minutes`, `letterboxd_rating`, `themes` |
-| `profiles` | Supabase (trigger ved signup), appen | appen | `id`, `onboarding_completed_at` |
-| `taste_signals` | appen | ML | `user_id`, `pipeline` (`stars` / `swipe` / `search`), `movie_id`, `signal` (`like` / `dislike` / `neutral`), `rating` (½–5, kun stjerner), `source` (`onboarding` / `feedback`), `created_at`, `updated_at` |
-| `recommendation_batches` | appen | holdet (målinger) | `id`, `user_id`, `pipeline`, `model_version`, `input_count`, `created_at` |
-| `recommendation_impressions` | appen | holdet (målinger) | `batch_id`, `movie_id`, `rank`, `score`, `shown_position`, `shown_at` |
-| `recommendation_feedback` | appen | holdet (målinger) | `batch_id`, `movie_id`, `outcome` (`seen_liked` / `seen_disliked`), `created_at` |
-| `preferences` | appen | ML | `favorite_genres text[]` (senere) |
-| `viewing_contexts` | appen | ML | `mood`, `time_available_minutes`, `company` (senere) |
-| `recommendations` | **kun ML** | appen | `user_id`, `rank` (1–5), `movie_id`, `score`, `reason` (engelsk tekst), `explanation` (jsonb, valgfri), `model_version`, `context_id`, `created_at` |
+The service returns 50 eligible unseen candidates. Existing streaming filtering and daily-pick promotion can change what is displayed; logs preserve both model rank and displayed position. More candidates can be requested without changing model weights. A movie existing in TMDB does not establish Danish streaming availability.
 
-`ratings` (1–5 stjerner) udgår. Tabellen kan slettes, når `taste_signals` er i brug.
+## Storage and legacy opinions
 
-### `taste_signals`
+Supabase remains responsible for authentication, opinions, preferences and events. New opinions/events use the existing `stars` pipeline because that namespace already stores TMDB IDs. Its name is historical; the batch `model_version` identifies the active model. This avoids changing database pipeline constraints or reinterpreting old `swipe` integers as TMDB IDs.
 
-```sql
-create table public.taste_signals (
-    user_id     uuid not null references auth.users (id) on delete cascade,
-    movie_id    integer not null,                                   -- MovieLens movieId
-    signal      text not null check (signal in ('like', 'dislike')),
-    source      text not null default 'onboarding' check (source in ('onboarding', 'feedback')),
-    created_at  timestamptz not null default now(),
-    primary key (user_id, movie_id)
-);
--- RLS: brugeren må læse/skrive sine egne rækker (som de andre tabeller).
-```
+`SupportedCatalogueTasteSignalService` reads canonical TMDB opinions and verified translations of legacy `swipe` and `search` Letterboxd opinions. It keeps the newest opinion per supported movie, with canonical priority on tied timestamps. Reads never copy, overwrite or delete original records. Unmapped and unsupported opinions remain recoverable in their original stores but do not count toward onboarding.
 
-- Én række pr. (bruger, film). Skifter brugeren mening, opdateres rækken. Fjernes et like, slettes rækken.
-- `source = 'feedback'` bruges senere til tommel op/ned på anbefalingerne. Samme tabel, ingen ny kontrakt.
-- **Ændret i 0004:** nøglen er nu `(user_id, pipeline, movie_id)`. Swipe og søgning har hver sin like-bunke, stjerner har sin egen. Kolonnerne `rating` og `updated_at` er tilføjet, og `signal` kan også være `neutral` (stjerner 2½–3). "Seen it" på en anbefaling gemmes med `source = 'feedback'`, og modellen lærer af det ved næste beregning.
+New answers write to canonical storage only. Explicit removal deletes corresponding verified legacy answers too, so undo cannot reveal an older answer again. Profile’s explicit Start fresh clears canonical and both legacy stores. These destructive actions occur only when the user invokes them.
 
-### Måling af præcision (0004)
+The new daily-pick key is `dailyPick.tmdb.knn.v1.<user>`. First use preserves answered-day/streak history from `dailyPick.swipe.<user>` but does not copy Letterboxd movie IDs. A migration marker prevents old progress from reappearing after reset.
 
-Appen logger hvert resultat fra modellen (batch), hver film der faktisk blev vist (impression), og "Seen it" (feedback). Læs tallene i SQL Editor:
+## Session and telemetry
 
-```sql
-select * from recommendation_metrics;          -- pr. pipeline og model_version
-select * from recommendation_metrics_by_rank;  -- samme, pr. modellens rank
-```
+Recommendation caches clear across sign-out. In-flight computations are invalidated before they can publish stale results. Screen state is keyed by user ID. Queued telemetry captures its originating user and drops events after an account change; explicit payload `user_id` also allows RLS to reject an in-flight session mismatch.
 
-- `precision_liked` = liked / (liked + disliked) blandt sete film. Det er det primære præcisionsmål.
-- `seen_rate` = andel af viste film, brugeren havde set. "Set" er ikke en fejl: modellen ramte noget relevant.
-- Mål altid pr. batch og `model_version`. Feedback ændrer næste batch, så før og efter må ikke blandes.
-- Rank over 10 er erstatninger, der rykkede op efter "Seen it", så de trækker gennemsnittet ned.
-- Star picks logges ikke endnu (ingen "Seen it" der).
+Batches record the model/catalogue version and accepted input count. Impressions record TMDB ID, raw score, model rank and shown position. Feedback retains the numeric verdict. Keep historical events in their original namespace and model version.
 
-### Sådan bruger ML-servicen signalerne
+The existing 0006 schema supports the current verdict scale. The read-only schema check confirms the rating/event columns and neutral/great metrics view are exposed; it does not perform authenticated writes or inspect SQL constraints. Do not blindly rerun 0006, because its historical score conversion is not safe to repeat after real Neutral feedback exists.
 
-- `liked` = alle film med `signal = 'like'`, nyeste først, højst 25 (modellens `MAX_LIKED`). Listen sendes direkte til `recommender.recommend(liked)`.
-- `dislike` bruges ikke af modellen endnu, men **alle film i `taste_signals` (like og dislike) filtreres fra resultatet**.
-- Under 5 likes → 422 `too_few_likes`.
+## Failure behaviour and checks
 
-### `explanation` (valgfri)
+A missing, invalid or unverified conditional-model bundle produces an unavailable/error state. It does not silently select Anton, MF or mock recommendations. Mock data remains available through explicit demo/previews.
 
-Modellens `breakdown` gemt som jsonb, så appen kan vise match-score og søjler:
-```json
-[{"feature": "director", "label": "Director", "value": 0.13}, {"feature": "theme", "label": "Themes", "value": 0.09}]
-```
-
-**RLS:** Appen kan kun se og ændre sine egne rækker og må kun *læse* `recommendations`.
-ML-servicen bruger **service role key**, som går uden om RLS. Den nøgle ligger kun på serveren (miljøvariabel), aldrig i appen og aldrig i git.
-
-**Skrivning af anbefalinger:** For den pågældende bruger sletter ML-servicen de gamle rækker i `recommendations` og indsætter nye med `rank` 1–5. Det sker i én transaktion eller i ét `upsert` på `(user_id, rank)`.
-
-## Endpoint: `POST /recommend`
-
-**Request**
-```
-POST {ML_BASE_URL}/recommend
-Authorization: Bearer <brugerens Supabase access token>
-Content-Type: application/json
-
-{ "context_id": null }          // uuid fra viewing_contexts, eller null
-```
-
-ML-servicen finder `user_id` ved at verificere tokenet, fx med `supabase.auth.get_user(token)` i Python.
-Den må **ikke** stole på et `user_id` i request-body.
-
-**Svar ved succes:** `200 OK`, efter at rækkerne er skrevet til `recommendations`
-```json
-{ "status": "ok", "count": 5, "model_version": "2026-10-23-a" }
-```
-Appen læser derefter `recommendations`. Svaret indeholder ikke selve anbefalingerne, så der er kun én sandhed: tabellen.
-
-**Fejl**
-
-| Status | `error` | Betydning | Appen viser |
-|---|---|---|---|
-| 401 | `invalid_token` | Token mangler, er ugyldigt eller udløbet | Logger brugeren ud eller forsøger igen efter refresh |
-| 422 | `too_few_likes` | Under 5 likes | "Pick at least 5 movies you love" |
-| 503 | `model_not_ready` | Modellen er ikke indlæst, eller serveren starter op (Render free tier kan tage ~1 min) | "Recommendations aren't ready yet – try again" |
-| 500 | `internal` | Andet | "Something went wrong" + "Try again" |
-
-Fejlbody: `{ "error": "too_few_likes", "message": "..." }` (`message` på engelsk)
-
-**Timeout:** Appen venter op til 60 sekunder (koldstart på Render).
-
-## Natlig beregning
-
-GitHub Actions kører den samme beregning for alle brugere hver nat og skriver til `recommendations`. Appen mærker ingen forskel.
-
-## Åbne spørgsmål til ML-teamet
-
-1. **URL:** Kører servicen på Render, eller lokalt på en af jeres computere? Hvis den kører lokalt, skal iPhonen kunne nå den (samme Wi-Fi + IP, eller ngrok).
-2. **`reason`:** Kan modellen give en kort begrundelse som **engelsk** tekst, fx "Because you liked Se7en · Director: David Fincher · Themes: serial killer"? Den kan bygges direkte ud fra modellens `because` og `shared`. Hvis ikke, viser appen bare genrerne.
-3. **Filmkatalog:** ~~Hvordan kender appen titlerne?~~ Løst: ML-teamet fylder `movies` i Supabase, og appen slår op dér. Åbent: kan alle 71.828 film anbefales, eller filtrerer ML?
-4. ~~**Skala:** Er 0.5–5.0 OK?~~ Udgået: appen sender likes/dislikes i stedet for stjerner.
-5. **Minimum likes:** Er 5 nok? Og bruger I højst 25 likes (`MAX_LIKED`)?
-6. **Film brugeren har markeret:** ~~Skal de udelukkes?~~ Ja: ML filtrerer alle film i `taste_signals` fra.
-7. **`popularity_boost`:** Kan den sættes til 0? Visionen er smag frem for popularitet.
-8. **Dislikes:** Kan modellen senere trække film ned, der ligner brugerens dislikes?
+Credentials stay in ignored `CineMatch/App/Secrets.plist`; no credentials belong in model exports, reports or source control. A model export includes the source checksum, verification evidence and reference rankings. Python/Swift parity, eligibility, exclusions, legacy translation and session invalidation are checked before delivery. Use `python3 ml/conditional_knn/check_swift.py` for portable Swift checks and the Xcode test target for full iOS/Supabase integration.

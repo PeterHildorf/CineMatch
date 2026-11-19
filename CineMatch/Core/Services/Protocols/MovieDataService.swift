@@ -13,7 +13,7 @@ enum MovieDataServiceError: Error, Equatable {
 /// I dag kommer de fra en lokal JSON-fil – senere måske fra Supabase eller TMDB.
 protocol MovieDataService: Sendable {
     func allTitles() async throws -> [Title]
-    /// Slår film op ud fra MovieLens-id'er, fx dem ML-servicen anbefaler.
+    /// Looks up app-facing IDs (TMDB IDs in the active catalogue), preserving requested order.
     /// Ukendte id'er springes over.
     func titles(withIDs ids: [Int]) async throws -> [Title]
     /// Søger film frem på titel. Tom forespørgsel giver ingen resultater.

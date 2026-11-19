@@ -148,6 +148,9 @@ struct SupabaseRowTests {
         // Swipe før 0005: kun like/dislike.
         #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": null, "source": "onboarding"}"#)?.verdict == .great)
         #expect(try signal(#"{"movie_id": 1, "signal": "dislike", "rating": null, "source": "onboarding"}"#)?.verdict == .bad)
+        // Before 0006, Great used 3 + like; Neutral must remain neutral.
+        #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": 3, "source": "onboarding"}"#)?.verdict == .great)
+        #expect(try signal(#"{"movie_id": 1, "signal": "neutral", "rating": 3, "source": "onboarding"}"#)?.verdict == .neutral)
         // Gamle halve stjerner.
         #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": 4.5, "source": "onboarding"}"#)?.verdict == .fantastic)
         #expect(try signal(#"{"movie_id": 1, "signal": "neutral", "rating": 2.5, "source": "onboarding"}"#)?.verdict == .neutral)

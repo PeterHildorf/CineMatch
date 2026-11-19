@@ -1,4 +1,19 @@
-# CineMatch – modellen i appen
+# CineMatch active recommendation model
+
+The active app uses **conditional neighbours**, selected from the CineMatch experimental campaign. Inference runs on the phone. Swipe, Search, onboarding and recommendations use one verified, model-supported TMDB catalogue.
+
+- Bundle: `CineMatch/Core/Resources/cinematch_knn.json`.
+- Scorer: `Core/ML/ConditionalNeighborRecommender.swift`.
+- Contract: [app/model contract](../docs/ml_contract.md).
+- Export, verification and reference cases: [conditional model integration](conditional_knn/INTEGRATION.md).
+- Portable checks: `python3 ml/conditional_knn/check_swift.py`.
+- Read-only configured backend schema check: `python3 ml/conditional_knn/check_backend_schema.py`.
+
+Missing or invalid active model data fails closed. Explicit demo mode still uses mock data. The older Anton and MF code/artifacts remain as references; replacing their bundles does not switch the active app.
+
+The following export instructions describe the historical Anton model only.
+
+# Legacy Anton export
 
 Antons model (`Antons_Model.py`) kører **lokalt i appen**. Der er ingen ML-server.
 

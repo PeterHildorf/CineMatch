@@ -142,9 +142,23 @@ final class RecommendationsViewModel {
             return
         }
         let input = (try? await signalService.allSignals()).map { Set($0.map { "\($0.movieID):\($0.score)" }) }
-        guard let input, input != computedInput else {
+        guard let input else {
             await load()
             return
+        }
+        if input == computedInput {
+            // "Start fresh" intentionally leaves an empty profile and no result.
+            // An unchanged nonempty profile may have lost its result after a
+            // session/cache reset or failed recompute; its fingerprint alone
+            // does not establish that there is still a result to display.
+            if input.isEmpty {
+                await load()
+                return
+            }
+            if let cached = try? await recommendationService.latestRecommendations(), !cached.isEmpty {
+                await load()
+                return
+            }
         }
         await recompute()
         if errorMessage == nil { computedInput = input }

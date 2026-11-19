@@ -13,7 +13,7 @@ enum RecommendationServiceError: Error, Equatable {
     case unknown
 }
 
-/// Giver brugerens top 5. Laves i dag lokalt af `OnDeviceRecommendationService`.
+/// Supplies ranked candidates. The active implementation scores conditional neighbours locally.
 protocol RecommendationService: Sendable {
     /// "Get recommendations": beregner nye anbefalinger ud fra brugerens likes.
     func requestRecompute() async throws

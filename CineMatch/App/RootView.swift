@@ -25,11 +25,17 @@ struct RootView: View {
                 SignInView(viewModel: authViewModel)
             case .signedIn(let session):
                 MainTabView(container: container, session: session) {
-                    Task { await authViewModel.signOut() }
+                    Task {
+                        await container.clearRecommendations()
+                        await authViewModel.signOut()
+                        await container.clearRecommendations()
+                    }
                 }
+                .id(session.userID)
             }
         }
         .task {
+            await container.clearRecommendations()
             if container.startsAsFreshTestUser {
                 await container.resetToFreshTestUser()
             }
