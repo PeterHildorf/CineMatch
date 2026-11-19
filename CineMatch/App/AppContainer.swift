@@ -10,6 +10,8 @@ import Supabase
 ///
 /// Alle bedømmelser bruger samme skala (`Verdict`: 0–5). Pipelines:
 /// - `swipe`: Swipe, Search og Today → Antons model. Film-id er Letterboxd-id.
+///   Med launch-argumentet `-ratingModel` kommer anbefalingerne fra hans nye model (`cinematch_rating_model.json`).
+///   Målingerne har modellens `modelVersion`, så de to modeller kan sammenlignes.
 ///   Swipe og Search gemmer i samme bunke, så Today ændrer sig, uanset hvor brugeren bedømmer.
 /// - `stars`: Mikkels model (TMDB-id). Ikke i UI'et lige nu (Rate og Star picks er fjernet).
 ///   TODO: Fodr den med swipe-dommene oversat Letterboxd-id → TMDB-id, så Today kan skifte model.
@@ -66,19 +68,27 @@ final class AppContainer {
         let authService: any AuthService = client.map { SupabaseAuthService(client: $0) } ?? MockAuthService()
 
         let antonStore: ModelStore? = ModelStore.isAvailable() ? ModelStore() : nil
+        // `-ratingModel` (Edit Scheme → Run → Arguments): Swipe, Search og Today bruger Antons nye model.
+        // Filmkataloget kommer stadig fra `cinematch_model.json`.
+        let wantsRatingModel = ProcessInfo.processInfo.arguments.contains("-ratingModel")
+        let ratingStore: RatingModelStore? = wantsRatingModel && RatingModelStore.isAvailable() ? RatingModelStore() : nil
+        if wantsRatingModel && ratingStore == nil {
+            AppLog.shared.error("-ratingModel: cinematch_rating_model.json not found – using the current model")
+        }
 
         // Så loggen viser, hvilke rigtige services og modeller appen kører med.
         AppLog.shared.info([
             "Supabase: \(client == nil ? "missing (mocks)" : "configured")",
             "TMDB: \(mediaService is TMDBMediaService ? "configured" : "missing (placeholders)")",
             "Anton model: \(antonStore == nil ? "missing (mocks)" : "available")",
+            "Recommender: \(ratingStore == nil ? "current model" : "rating model")",
             "MF model: \(MFModelStore.isAvailable() ? "available" : "missing (mocks)")",
         ].joined(separator: " · "))
 
         let container = AppContainer(
             authService: authService,
             stars: starPipeline(storage: Storage(client: client, pipeline: .stars)),
-            swipe: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .swipe)),
+            swipe: antonPipeline(store: antonStore, ratingStore: ratingStore, storage: Storage(client: client, pipeline: .swipe)),
             mediaService: mediaService,
             // Supabase: valget følger brugeren. Uden Supabase: lokalt, men stadig pr. bruger.
             makePreferencesService: { userID -> any PreferencesService in
@@ -130,7 +140,8 @@ final class AppContainer {
     /// Én Anton-pipeline med sin egen like-bunke. Får modellen udefra, så flere pipelines (swipe, søgning)
     /// kan dele samme indlæste modelfil, men stadig have hvert sit input og hvert sit resultat.
     /// `store == nil` (modelfilen mangler) → falske anbefalinger.
-    private static func antonPipeline(store: ModelStore?, storage: Storage) -> ModelPipeline {
+    /// `ratingStore` sat → anbefalingerne kommer fra den nye model; filmdata stadig fra `store`.
+    private static func antonPipeline(store: ModelStore?, ratingStore: RatingModelStore? = nil, storage: Storage) -> ModelPipeline {
         let signals = storage.signals
         guard let store else {
             return ModelPipeline(
@@ -143,7 +154,9 @@ final class AppContainer {
         return ModelPipeline(
             movieDataService: OnDeviceMovieDataService(store: store),
             signalService: signals,
-            recommendationService: OnDeviceRecommendationService(store: store, tasteSignalService: signals),
+            recommendationService: ratingStore.map {
+                RatingRecommendationService(store: $0, catalog: store, tasteSignalService: signals) as any RecommendationService
+            } ?? OnDeviceRecommendationService(store: store, tasteSignalService: signals),
             eventLogger: storage.eventLogger
         )
     }
