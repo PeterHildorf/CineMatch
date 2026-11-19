@@ -48,6 +48,18 @@ struct ConditionalNeighborTests {
         #expect(reverse.results == [.init(tmdbId: 101, score: 0.2)])
     }
 
+    /// 103 gets 1×0.5 from 101 and 2×0.25 from 102 (a tie → earliest rating wins); 105 only gets 2×0.5 from 102.
+    @Test func strongestContributorExplainsEachRecommendation() throws {
+        let model = try conditionalFixture()
+        let ratings: [ConditionalNeighborRecommender.Rating] = [.init(tmdbId: 101, stars: 4), .init(tmdbId: 102, stars: 5)]
+        let because = model.strongestContributors(to: [103, 105, 106, 999], ratings: ratings)
+        #expect(because == [103: 101, 105: 102])
+        let swapped = model.strongestContributors(to: [103], ratings: Array(ratings.reversed()))
+        #expect(swapped == [103: 102])
+        // Dislikes and neutral ratings never explain anything.
+        #expect(model.strongestContributors(to: [103], ratings: [.init(tmdbId: 101, stars: 3)]).isEmpty)
+    }
+
     @Test func allSeenVerdictsAreExcludedAndUnknownOrIneligibleIDsNeverEnterGraph() throws {
         let model = try conditionalFixture()
         let output = try model.recommend(
@@ -171,6 +183,21 @@ struct ConditionalNeighborServiceTests {
         await service.clearRecommendations()
         #expect(try await service.latestRecommendations().isEmpty)
         #expect(await service.latestBatch() == nil)
+    }
+
+    /// 103: 0.5 via Film 1 + 0.25 via Film 2 → Film 1. 105: 0.5 via Film 2.
+    @Test func reasonNamesTheLikedMovieThatContributedMost() async throws {
+        let signals = MockTasteSignalService(signals: [101, 102, 106, 107, 108].map {
+            TasteSignal(movieID: $0, verdict: .great)
+        })
+        let service = ConditionalNeighborRecommendationService(
+            store: ConditionalNeighborModelStore(preloaded: try conditionalFixture()), tasteSignalService: signals
+        )
+        try await service.requestRecompute()
+        let result = try await service.latestRecommendations()
+        #expect(result.map(\.movieID) == [103, 105])
+        #expect(result.map(\.reason) == ["Because you liked Film 1", "Because you liked Film 2"])
+        #expect(result.map(\.becauseMovieID) == [101, 102])
     }
 
     @Test func unsupportedAndDuplicateLikesCannotPassOnboardingGate() async throws {

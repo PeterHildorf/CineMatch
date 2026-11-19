@@ -7,6 +7,7 @@ import SwiftUI
     var body: some Scene {
         WindowGroup {
             RootView(container: container)
+                .tint(Theme.accent)
         }
     }
 }

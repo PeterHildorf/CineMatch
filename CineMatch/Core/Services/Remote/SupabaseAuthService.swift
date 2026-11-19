@@ -100,6 +100,12 @@ final class SupabaseAuthService: AuthService {
         case .overEmailSendRateLimit, .overRequestRateLimit:
             return .tooManyRequests
         default:
+            // "Unable to validate email address: invalid format" kommer som validation_failed.
+            let code = authError.errorCode.rawValue
+            if code == "email_address_invalid"
+                || (code == "validation_failed" && authError.message.localizedCaseInsensitiveContains("email")) {
+                return .invalidEmail
+            }
             return .unknown
         }
     }

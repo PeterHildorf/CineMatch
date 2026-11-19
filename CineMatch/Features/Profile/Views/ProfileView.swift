@@ -74,10 +74,7 @@ struct ProfileView: View {
                     .font(.system(size: 40, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(width: 88, height: 88)
-                    .background(
-                        LinearGradient(colors: [.accentColor, .purple], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: .circle
-                    )
+                    .background(Theme.gradient, in: .circle)
                     .accessibilityHidden(true)
 
                 if let email = viewModel.email {
@@ -103,7 +100,7 @@ struct ProfileView: View {
             Button { isShowingServices = true } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "play.tv")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Theme.accent)
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("My streaming services")
@@ -184,7 +181,7 @@ private struct StatTile: View {
         VStack(spacing: 4) {
             Image(systemName: systemImage)
                 .font(.subheadline)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Theme.accent)
             Text(value, format: .number)
                 .font(.title2.bold())
                 .contentTransition(.numericText())
@@ -209,7 +206,7 @@ private struct FreshStartSheet: View {
         VStack(spacing: 20) {
             Image(systemName: "sparkles")
                 .font(.system(size: 44))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Theme.accent)
                 .symbolEffect(.bounce, options: .nonRepeating)
 
             VStack(spacing: 8) {

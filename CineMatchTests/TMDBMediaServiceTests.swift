@@ -71,7 +71,7 @@ struct TMDBMediaServiceTests {
         let media = try #require(await makeService(stub).media(for: matrix))
 
         #expect(stub.requests.count == 1, "Ingen søgning, når tmdbId er kendt")
-        #expect(stub.query(0)["append_to_response"] == "watch/providers")
+        #expect(stub.query(0)["append_to_response"] == "watch/providers,credits,keywords")
         #expect(stub.requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer header.payload.signature")
         #expect(media.tmdbId == 603)
         #expect(media.posterURL?.absoluteString == "https://image.tmdb.org/t/p/w500/matrix.jpg")
@@ -79,6 +79,28 @@ struct TMDBMediaServiceTests {
         #expect(media.bestProvider?.logoURL?.absoluteString == "https://image.tmdb.org/t/p/w92/netflix.jpg")
         #expect(media.canRentOrBuy)
         #expect(media.watchLink != nil)
+        #expect(media.directors.isEmpty && media.cast.isEmpty && media.keywords.isEmpty, "Ingen credits i svaret")
+        #expect(media.overview == nil)
+    }
+
+    @Test func readsDirectorsCastInOrderAndContentKeywords() async throws {
+        let json = """
+        {
+          "id": 603, "poster_path": null, "watch/providers": { "results": {} },
+          "overview": "A hacker learns the truth about reality.",
+          "credits": {
+            "cast": [ { "name": "Laurence Fishburne", "order": 1 }, { "name": "Keanu Reeves", "order": 0 } ],
+            "crew": [ { "name": "Lana Wachowski", "job": "Director" }, { "name": "Bill Pope", "job": "Director of Photography" },
+                      { "name": "Lilly Wachowski", "job": "Director" } ]
+          },
+          "keywords": { "keywords": [ { "name": "simulated reality" }, { "name": "duringcreditsstinger" }, { "name": "hacker" } ] }
+        }
+        """
+        let media = try #require(await makeService(StubTransport(["/movie/603": json])).media(for: matrix))
+        #expect(media.directors == ["Lana Wachowski", "Lilly Wachowski"])
+        #expect(media.cast == ["Keanu Reeves", "Laurence Fishburne"])
+        #expect(media.keywords == ["simulated reality", "hacker"])
+        #expect(media.overview == "A hacker learns the truth about reality.")
     }
 
     @Test func searchesByTitleAndYearWhenTMDBIdIsMissing() async throws {
@@ -189,7 +211,7 @@ struct TitleMediaViewModelTests {
 
         await viewModel.loadPosters()
 
-        #expect(media.requestedIDs == titles.prefix(3).map(\.id))
+        #expect(media.requestedIDs == titles.prefix(TasteViewModel.posterPrefetchCount).map(\.id))
         #expect(viewModel.posterURLs[titles[0].id] == poster)
         #expect(viewModel.posterURLs[titles[1].id] == nil)
     }

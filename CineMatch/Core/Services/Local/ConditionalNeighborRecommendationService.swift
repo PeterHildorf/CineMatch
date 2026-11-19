@@ -2,7 +2,12 @@ import Foundation
 
 /// Applies the app's five-positive onboarding rule, then scores every supported seen opinion.
 final class ConditionalNeighborRecommendationService: RecommendationService {
+    /// Used when no single liked movie explains the result (e.g. it scored zero).
     static let reasonText = "Based on your ratings"
+    /// Used when the user has no positive ratings the model can use, so results are the most-rated movies.
+    static let popularReasonText = "Popular with film fans"
+
+    static func becauseText(_ title: String) -> String { "Because you liked \(title)" }
     private let store: ConditionalNeighborModelStore
     private let tasteSignalService: any TasteSignalService
     private let candidateCount: Int
@@ -56,10 +61,11 @@ final class ConditionalNeighborRecommendationService: RecommendationService {
             throw RecommendationServiceError.tooFewLikes
         }
         let seen = supported.filter(\.verdict.isSeen).sorted { $0.movieID < $1.movieID }
+        let ratings = seen.map { ConditionalNeighborRecommender.Rating(tmdbId: $0.movieID, stars: Double($0.score)) }
         let output: ConditionalNeighborRecommender.Output
         do {
             output = try model.recommend(
-                ratings: seen.map { .init(tmdbId: $0.movieID, stars: Double($0.score)) },
+                ratings: ratings,
                 excluding: Set(seen.map(\.movieID)),
                 limit: candidateCount
             )
@@ -69,8 +75,25 @@ final class ConditionalNeighborRecommendationService: RecommendationService {
             throw RecommendationServiceError.unknown
         }
         try ensureCurrent(requestGeneration)
+        // "Because you liked …" from the same edge contributions the score is built from.
+        let because = output.personalized
+            ? model.strongestContributors(to: output.results.map(\.tmdbId), ratings: ratings)
+            : [:]
         latest = output.results.enumerated().map { position, result in
-            Recommendation(rank: position + 1, movieID: result.tmdbId, score: result.score, reason: Self.reasonText)
+            let reason: String
+            var becauseMovieID: Int?
+            if !output.personalized {
+                reason = Self.popularReasonText
+            } else if let sourceID = because[result.tmdbId], let title = model.movie(tmdbId: sourceID)?.title {
+                reason = Self.becauseText(title)
+                becauseMovieID = sourceID
+            } else {
+                reason = Self.reasonText
+            }
+            return Recommendation(
+                rank: position + 1, movieID: result.tmdbId, score: result.score,
+                reason: reason, becauseMovieID: becauseMovieID
+            )
         }
         batch = RecommendationBatch(modelVersion: model.modelVersion, inputCount: output.ratingsUsed)
     }

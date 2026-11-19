@@ -183,4 +183,28 @@ struct TasteViewModelTests {
         #expect(!viewModel.queue.contains { $0.id == 2571 })
         #expect(viewModel.likeCount == 1)
     }
+
+    @Test func shuffledInBlocksKeepsEveryFilmInItsBlock() {
+        let titles = (1...120).map { Title(id: $0, tmdbId: $0, title: "Film \($0)", year: 2000, genres: []) }
+        let shuffled = TasteViewModel.shuffledInBlocks(titles, blockSize: 50)
+
+        #expect(shuffled.count == titles.count)
+        #expect(Set(shuffled.map(\.id)) == Set(titles.map(\.id)))
+        // De 50 mest kendte film bliver i de første 50 pladser osv.
+        #expect(Set(shuffled[0..<50].map(\.id)) == Set(1...50))
+        #expect(Set(shuffled[50..<100].map(\.id)) == Set(51...100))
+        #expect(Set(shuffled[100..<120].map(\.id)) == Set(101...120))
+    }
+
+    @Test func loadUsesTheGivenOrderForNewFilms() async {
+        let viewModel = TasteViewModel(
+            movieDataService: MockMovieDataService(),
+            tasteSignalService: MockTasteSignalService(),
+            order: { $0.reversed() }
+        )
+        await viewModel.load()
+
+        let titles = try? await MockMovieDataService().allTitles()
+        #expect(viewModel.current?.id == titles?.last?.id)
+    }
 }

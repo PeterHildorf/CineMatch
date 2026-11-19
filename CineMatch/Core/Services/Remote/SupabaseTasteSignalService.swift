@@ -125,7 +125,12 @@ final class SupabaseTasteSignalService: TasteSignalService {
 
     /// Logger den rå fejl (brugeren ser kun en generel besked) og oversætter den.
     private func mapError(_ error: Error, _ operation: String) -> TasteSignalServiceError {
-        AppLog.shared.error("taste_signals [\(pipeline.rawValue)] \(operation) failed", error)
+        // Afbrudt (skærmen forsvandt): ikke en rigtig fejl, så den fylder ikke loggen med [ERROR].
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
+            AppLog.shared.info("taste_signals [\(pipeline.rawValue)] \(operation) cancelled")
+        } else {
+            AppLog.shared.error("taste_signals [\(pipeline.rawValue)] \(operation) failed", error)
+        }
         if let error = error as? TasteSignalServiceError { return error }
         if error is URLError { return .network }
         return .unknown

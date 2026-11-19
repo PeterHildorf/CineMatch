@@ -174,4 +174,39 @@ nonisolated struct ConditionalNeighborRecommender: Sendable {
             results: results
         )
     }
+
+    /// "Because you liked …": for each target, the rated movie whose edge added the most to its score.
+    /// Uses exactly the same contributions as `recommend` (`max(stars − 3, 0) × edge weight`), but never
+    /// changes scores or order. Targets without a positive contribution (e.g. fallback results) are absent.
+    /// Ties keep the earliest rating in input order, so the result is deterministic.
+    func strongestContributors(to targetIDs: [Int], ratings: [Rating]) -> [Int: Int] {
+        var targetPositions = Set<Int>()
+        for id in targetIDs {
+            if let position = indexByTMDBID[id] { targetPositions.insert(position) }
+        }
+        guard !targetPositions.isEmpty else { return [:] }
+
+        var best: [Int: (contribution: Double, sourceID: Int)] = [:]
+        var used = Set<Int>()
+        for rating in ratings {
+            guard used.insert(rating.tmdbId).inserted,
+                  let position = indexByTMDBID[rating.tmdbId] else { continue }
+            let weight = max(rating.stars - 3, 0)
+            guard weight > 0 else { continue }
+            for edge in file.neighborOffsets[position]..<file.neighborOffsets[position + 1] {
+                let target = file.neighborIndices[edge]
+                guard targetPositions.contains(target) else { continue }
+                let contribution = weight * file.neighborWeights[edge]
+                if contribution > (best[target]?.contribution ?? 0) {
+                    best[target] = (contribution, rating.tmdbId)
+                }
+            }
+        }
+
+        var result: [Int: Int] = [:]
+        for (position, entry) in best {
+            if let id = file.movies[position].tmdbId { result[id] = entry.sourceID }
+        }
+        return result
+    }
 }

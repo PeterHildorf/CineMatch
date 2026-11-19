@@ -32,7 +32,12 @@ struct RecommendationRow: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                if let reason = item.recommendation.reason {
+                if let overview = item.overview {
+                    Text(overview)
+                        .font(.subheadline)
+                        .lineLimit(2)
+                }
+                if let reason = item.reason {
                     Text(reason)
                         .font(.callout)
                 }

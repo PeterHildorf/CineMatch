@@ -46,8 +46,14 @@ final class AuthViewModel {
     /// Knappen er kun aktiv, når felterne ser rimelige ud.
     var canSubmit: Bool {
         !isWorking
-            && trimmedEmail.contains("@")
+            && isEmailValid
             && password.count >= Self.minimumPasswordLength
+    }
+
+    /// Samme slags tjek som Supabase: navn@domæne.endelse, uden mellemrum og kun almindelige tegn.
+    /// (Supabase afviser fx "peter@test" og e-mails med æ, ø eller å.)
+    var isEmailValid: Bool {
+        trimmedEmail.wholeMatch(of: /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/) != nil
     }
 
     private var trimmedEmail: String {
@@ -95,7 +101,7 @@ final class AuthViewModel {
                 case .signedIn(let session):
                     finishSignIn(with: session)
                 case .confirmationRequired:
-                    infoMessage = "Vi har sendt en bekræftelsesmail til \(trimmedEmail). Klik på linket, og log derefter ind."
+                    infoMessage = "We sent a confirmation email to \(trimmedEmail). Tap the link, then sign in."
                     mode = .signIn
                 }
             }
@@ -114,7 +120,7 @@ final class AuthViewModel {
             state = .signedOut
         } catch {
             AppLog.shared.error("Auth: sign out failed", error)
-            errorMessage = "Kunne ikke logge ud. Prøv igen."
+            errorMessage = "Couldn't sign out. Please try again."
         }
     }
 
@@ -129,19 +135,21 @@ final class AuthViewModel {
     private static func message(for error: Error) -> String {
         switch error as? AuthServiceError {
         case .invalidCredentials:
-            return "Forkert e-mail eller adgangskode."
+            return "Wrong email or password."
+        case .invalidEmail:
+            return "That email address doesn't look right. Check it for typos, e.g. name@example.com."
         case .emailAlreadyInUse:
-            return "Der findes allerede en konto med den e-mail. Prøv at logge ind."
+            return "There's already an account with that email. Try signing in."
         case .weakPassword:
-            return "Adgangskoden er for svag. Brug mindst \(minimumPasswordLength) tegn."
+            return "That password is too weak. Use at least \(minimumPasswordLength) characters."
         case .emailNotConfirmed:
-            return "Du skal bekræfte din e-mail, før du kan logge ind."
+            return "Please confirm your email before signing in."
         case .tooManyRequests:
-            return "For mange forsøg. Vent lidt, og prøv igen."
+            return "Too many attempts. Wait a moment and try again."
         case .network:
-            return "Ingen forbindelse. Tjek dit internet, og prøv igen."
+            return "No connection. Check your internet and try again."
         case .unknown, nil:
-            return "Noget gik galt. Prøv igen."
+            return "Something went wrong. Please try again."
         }
     }
 }

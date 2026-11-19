@@ -45,17 +45,21 @@ final class TasteViewModel {
     private let mediaService: any TitleMediaService
     /// Hvad den aktive model lærer af. Styrer, hvad der tæller i fremskridtet.
     let input: TasteInput
+    /// Blander de nye film, før de lægges i bunken. Tests bruger den faste rækkefølge.
+    private let order: ([Title]) -> [Title]
 
     init(
         movieDataService: any MovieDataService,
         tasteSignalService: any TasteSignalService,
         mediaService: any TitleMediaService = MockTitleMediaService(),
-        input: TasteInput = .likes
+        input: TasteInput = .likes,
+        order: @escaping ([Title]) -> [Title] = { $0 }
     ) {
         self.movieDataService = movieDataService
         self.tasteSignalService = tasteSignalService
         self.mediaService = mediaService
         self.input = input
+        self.order = order
     }
 
     var current: Title? { queue.first }
@@ -75,8 +79,21 @@ final class TasteViewModel {
 
     func count(of verdict: Verdict) -> Int { verdicts.values.filter { $0 == verdict }.count }
 
-    // MARK: - Indlæsning
+    // MARK: - Rækkefølge
 
+    /// Så mange film blandes ad gangen. Filmene kommer sorteret efter, hvor kendte de er.
+    static let shuffleBlockSize = 50
+
+    /// Blander filmene i blokke af `shuffleBlockSize`, så hver bruger får sin egen rækkefølge,
+    /// men de kendte film stadig kommer først (ellers bliver det mest "Haven't seen").
+    nonisolated static func shuffledInBlocks(_ titles: [Title], blockSize: Int = shuffleBlockSize) -> [Title] {
+        stride(from: 0, to: titles.count, by: blockSize).flatMap { start in
+            titles[start..<min(start + blockSize, titles.count)].shuffled()
+        }
+    }
+
+    // MARK: - Indlæsning
+    
     func load() async {
         state = .loading
         do {
@@ -89,7 +106,7 @@ final class TasteViewModel {
             // Bedømte film vises ikke igen. Film sprunget over for længe siden kommer igen – efter de nye.
             let hidden = saved.hiddenFromSwipe()
             let visible = titles.filter { !hidden.contains($0.id) }
-            queue = visible.filter { verdicts[$0.id] == nil } + visible.filter { verdicts[$0.id] != nil }
+            queue = order(visible.filter { verdicts[$0.id] == nil }) + visible.filter { verdicts[$0.id] != nil }
             history = []
             historyTitles = [:]
             state = .loaded
@@ -108,9 +125,13 @@ final class TasteViewModel {
         queue.removeAll { hidden.contains($0.id) }
     }
 
-    /// Henter plakaten til kortet, der vises nu, og de to næste, så de er klar, når brugeren swiper.
+    /// Så mange kort frem hentes plakaten til, så de er klar, når brugeren swiper.
+    static let posterPrefetchCount = 5
+
+    /// Henter plakaten til kortet, der vises nu, og de næste, så de er klar, når brugeren swiper.
+    /// Kortet, der vises nu, hentes først.
     func loadPosters() async {
-        for title in queue.prefix(3) where posterURLs[title.id] == nil {
+        for title in queue.prefix(Self.posterPrefetchCount) where posterURLs[title.id] == nil {
             if let url = await mediaService.media(for: title)?.posterURL {
                 posterURLs[title.id] = url
             }

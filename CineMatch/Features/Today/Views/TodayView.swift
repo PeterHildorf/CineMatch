@@ -20,12 +20,17 @@ struct TodayView: View {
 
     /// Filmen, hvis detaljer vises i et ark.
     @State private var selected: RecommendationsViewModel.Item?
+    /// Plakaten "zoomer" op til detaljearket og tilbage igen.
+    @Namespace private var detailZoom
+    /// Vibration: "Seen it" (succes) og knaptryk som "Another pick" og "Show more" (let tap).
+    @State private var seenTick = 0
+    @State private var tapTick = 0
 
     var body: some View {
         Group {
             switch viewModel.state {
             case .loading:
-                ProgressView("Finding tonight's pick …")
+                TodaySkeleton()
             case .empty:
                 ContentUnavailableView {
                     Label("No picks yet", systemImage: "sparkles")
@@ -69,7 +74,10 @@ struct TodayView: View {
         .sheet(item: $selected) { item in
             TitleDetailSheet(item: item, myServices: viewModel.myServices, onSeen: seenAction(for: item))
                 .presentationDetents([.medium, .large])
+                .navigationTransition(.zoom(sourceID: item.id, in: detailZoom))
         }
+        .sensoryFeedback(.success, trigger: seenTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: tapTick)
         .task { await viewModel.refresh() }
     }
 
@@ -89,7 +97,11 @@ struct TodayView: View {
                         myServices: viewModel.myServices,
                         streak: viewModel.streak,
                         onSeen: seenAction(for: pick),
-                        onAnother: { Task { await viewModel.anotherDailyPick() } },
+                        zoomNamespace: detailZoom,
+                        onAnother: {
+                            tapTick += 1
+                            Task { await viewModel.anotherDailyPick() }
+                        },
                         onDetails: { selected = pick }
                     )
                 }
@@ -122,9 +134,13 @@ struct TodayView: View {
                         items: top,
                         firstRank: 1,
                         myServices: viewModel.myServices,
-                        showMore: viewModel.canShowMore ? { Task { await viewModel.showMore() } } : nil,
+                        zoomNamespace: detailZoom,
+                        showMore: viewModel.canShowMore ? {
+                            tapTick += 1
+                            Task { await viewModel.showMore() }
+                        } : nil,
                         onSelect: { selected = $0 },
-                        onSeen: { item, verdict in Task { await viewModel.markSeen(item, verdict: verdict) } }
+                        onSeen: { item, verdict in markSeen(item, verdict) }
                     )
                 }
                 if !more.isEmpty {
@@ -133,9 +149,10 @@ struct TodayView: View {
                         items: more,
                         firstRank: top.count + 1,
                         myServices: viewModel.myServices,
+                        zoomNamespace: detailZoom,
                         showMore: nil,
                         onSelect: { selected = $0 },
-                        onSeen: { item, verdict in Task { await viewModel.markSeen(item, verdict: verdict) } }
+                        onSeen: { item, verdict in markSeen(item, verdict) }
                     )
                 }
 
@@ -162,8 +179,13 @@ struct TodayView: View {
         guard viewModel.canMarkSeen else { return nil }
         return { verdict in
             selected = nil
-            Task { await viewModel.markSeen(item, verdict: verdict) }
+            markSeen(item, verdict)
         }
+    }
+
+    private func markSeen(_ item: RecommendationsViewModel.Item, _ verdict: Verdict) {
+        seenTick += 1
+        Task { await viewModel.markSeen(item, verdict: verdict) }
     }
 }
 
@@ -175,6 +197,7 @@ private struct DailyPickHero: View {
     let myServices: Set<StreamingService>
     let streak: Int
     var onSeen: ((Verdict) -> Void)?
+    let zoomNamespace: Namespace.ID
     let onAnother: () -> Void
     let onDetails: () -> Void
 
@@ -197,6 +220,7 @@ private struct DailyPickHero: View {
                 PosterImage(url: item.media?.posterURL)
                     .frame(width: 210, height: 315)
                     .clipShape(.rect(cornerRadius: 18))
+                    .matchedTransitionSource(id: item.id, in: zoomNamespace)
                     .shadow(color: .black.opacity(0.35), radius: 20, y: 10)
             }
             .buttonStyle(.plain)
@@ -213,7 +237,14 @@ private struct DailyPickHero: View {
                 }
             }
 
-            if let reason = item.recommendation.reason {
+            if let overview = item.overview {
+                // Kort: hele teksten står i detaljearket (tryk på plakaten).
+                Text(overview)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
+            if let reason = item.reason {
                 Text(reason)
                     .font(.callout)
                     .multilineTextAlignment(.center)
@@ -274,6 +305,7 @@ private struct PosterShelf: View {
     let items: [RecommendationsViewModel.Item]
     let firstRank: Int
     let myServices: Set<StreamingService>
+    let zoomNamespace: Namespace.ID
     let showMore: (() -> Void)?
     let onSelect: (RecommendationsViewModel.Item) -> Void
     let onSeen: (RecommendationsViewModel.Item, Verdict) -> Void
@@ -287,7 +319,7 @@ private struct PosterShelf: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 14) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        PosterTile(item: item, rank: firstRank + index, myServices: myServices)
+                        PosterTile(item: item, rank: firstRank + index, myServices: myServices, zoomNamespace: zoomNamespace)
                             .onTapGesture { onSelect(item) }
                             .contextMenu {
                                 Section("Seen it?") {
@@ -324,12 +356,14 @@ private struct PosterTile: View {
     let item: RecommendationsViewModel.Item
     let rank: Int
     let myServices: Set<StreamingService>
+    let zoomNamespace: Namespace.ID
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             PosterImage(url: item.media?.posterURL)
                 .frame(width: Self.width, height: Self.width * 1.5)
                 .clipShape(.rect(cornerRadius: 14))
+                .matchedTransitionSource(id: item.id, in: zoomNamespace)
                 .overlay(alignment: .topLeading) {
                     Text("\(rank)")
                         .font(.caption.weight(.heavy))
@@ -343,12 +377,11 @@ private struct PosterTile: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(2, reservesSpace: true)
 
-            if let provider = providerText {
-                Text(provider)
-                    .font(.caption)
-                    .foregroundStyle(isOnMyServices ? Color.green : Color.secondary)
-                    .lineLimit(1)
-            }
+            // Altid én linje, så alle plakater i rækken står ens – også film, der ikke streames.
+            Text(providerText)
+                .font(.caption)
+                .foregroundStyle(isOnMyServices ? Color.green : Color.secondary)
+                .lineLimit(1)
         }
         .frame(width: Self.width)
         .contentShape(.rect)
@@ -359,9 +392,63 @@ private struct PosterTile: View {
 
     private var isOnMyServices: Bool { item.media?.provider(in: myServices) != nil }
 
-    private var providerText: String? {
-        if let mine = item.media?.provider(in: myServices) { return "✓ \(mine.name)" }
-        return item.media?.bestProvider?.name
+    /// Brugerens tjeneste → anden streamingtjeneste → leje/køb → ingen streaming.
+    /// Mange klassikere er kun til leje i Danmark, så uden de sidste to stod feltet tomt.
+    private var providerText: String {
+        guard let media = item.media else { return " " }   // endnu ikke hentet: hold pladsen
+        if let mine = media.provider(in: myServices) { return "✓ \(mine.name)" }
+        if let other = media.bestProvider { return other.name }
+        if media.canRentOrBuy { return "Rent or buy" }
+        return "Not streaming"
+    }
+}
+
+// MARK: - Indlæsning
+
+/// Grå pladsholdere i skærmens form, mens anbefalingerne regnes ud. Føles hurtigere end en spinner.
+private struct TodaySkeleton: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(spacing: 14) {
+                    block(width: 120, height: 14)
+                    block(width: 210, height: 315, radius: 18)
+                    block(width: 220, height: 26)
+                    block(width: 160, height: 14)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16)
+
+                ForEach(0..<2, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 12) {
+                        block(width: 140, height: 20)
+                            .padding(.horizontal)
+                        HStack(spacing: 14) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    block(width: PosterTile.width, height: PosterTile.width * 1.5, radius: 14)
+                                    block(width: 100, height: 14)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+        }
+        .scrollDisabled(true)
+        // Pulserer roligt, så man kan se, at der sker noget.
+        .phaseAnimator([0.45, 1.0]) { content, opacity in
+            content.opacity(opacity)
+        } animation: { _ in .easeInOut(duration: 0.9) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Finding tonight's pick")
+    }
+
+    private func block(width: CGFloat, height: CGFloat, radius: CGFloat = 6) -> some View {
+        RoundedRectangle(cornerRadius: radius)
+            .fill(.quaternary)
+            .frame(width: width, height: height)
     }
 }
 
@@ -387,10 +474,10 @@ private struct TitleDetailSheet: View {
                             Text(RecommendationRow.subtitle(for: title))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            if let director = title.director {
-                                Text("Directed by \(director)")
-                                    .font(.subheadline)
-                            }
+                        }
+                        if let director = item.director {
+                            Text("Directed by \(director)")
+                                .font(.subheadline)
                         }
                         if let onSeen {
                             VerdictMenu(title: "Seen it? Rate it", size: .regular, onRate: onSeen)
@@ -398,14 +485,14 @@ private struct TitleDetailSheet: View {
                         }
                     }
                 }
-                if let reason = item.recommendation.reason {
+                if let reason = item.reason {
                     Label(reason, systemImage: "sparkles")
                         .font(.callout)
                 }
                 if let media = item.media {
                     WhereToWatch(media: media, myServices: myServices)
                 }
-                if let overview = item.title?.overview {
+                if let overview = item.overview {
                     Text(overview)
                         .font(.body)
                         .foregroundStyle(.secondary)

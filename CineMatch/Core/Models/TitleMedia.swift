@@ -15,6 +15,14 @@ struct TitleMedia: Hashable, Sendable {
     var canRentOrBuy = false
     /// TMDB's side med links til tjenesterne.
     var watchLink: URL? = nil
+    /// Instruktør(er), fra TMDB's credits.
+    var directors: [String] = []
+    /// De første navne på rollelisten (hovedrollerne først).
+    var cast: [String] = []
+    /// TMDB-keywords, fx "dream", "heist". Bruges som "Themes" i begrundelsen.
+    var keywords: [String] = []
+    /// Kort handlingsbeskrivelse fra TMDB (engelsk). `nil`, hvis TMDB ikke har en.
+    var overview: String? = nil
 
     /// Den tjeneste, kortet viser. I dag den mest populære i landet.
     /// TODO: Vælg ud fra de tjenester, brugeren selv har.

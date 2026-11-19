@@ -19,10 +19,37 @@ final class RecommendationsViewModel {
         let title: Title?
         /// Plakat og streamingtjeneste. `nil`, indtil TMDB har svaret (eller hvis filmen er ukendt).
         var media: TitleMedia? = nil
+        /// Den sete film, anbefalingen kommer fra (`Recommendation.becauseMovieID`), og dens TMDB-data.
+        var becauseTitle: Title? = nil
+        var becauseMedia: TitleMedia? = nil
 
         /// Film-id, ikke rank: så SwiftUI kan animere, når en film fjernes og en ny rykker op.
         var id: Int { recommendation.movieID }
         var displayTitle: String { title?.title ?? "Movie #\(recommendation.movieID)" }
+
+        /// Handlingsbeskrivelse: fra filmkataloget, ellers fra TMDB (Mikkels katalog har ingen).
+        var overview: String? {
+            if let overview = title?.overview, !overview.isEmpty { return overview }
+            return media?.overview
+        }
+
+        /// Instruktør: fra filmkataloget, ellers fra TMDB.
+        var director: String? {
+            if let director = title?.director, !director.isEmpty { return director }
+            let directors = media?.directors ?? []
+            return directors.isEmpty ? nil : directors.joined(separator: ", ")
+        }
+
+        /// Begrundelsen, der vises: modellens tekst + det, filmene har til fælles (når TMDB har svaret).
+        /// Fx "Because you liked Inception · Director: Christopher Nolan · Cast: Tom Hardy".
+        var reason: String? {
+            guard let base = recommendation.reason else { return nil }
+            guard becauseTitle != nil else { return base }
+            let groups = RecommendationReason.sharedGroups(
+                title: title, media: media, because: becauseTitle, becauseMedia: becauseMedia
+            )
+            return RecommendationReason.text(base: base, groups: groups)
+        }
     }
 
     enum State: Equatable {
@@ -160,8 +187,8 @@ final class RecommendationsViewModel {
                 return
             }
         }
-        await recompute()
-        if errorMessage == nil { computedInput = input }
+        // Kun når beregningen faktisk blev færdig – ellers prøver næste `refresh` igen.
+        if await recompute() { computedInput = input }
     }
 
     /// Læser de seneste anbefalinger.
@@ -177,11 +204,22 @@ final class RecommendationsViewModel {
                 state = .empty
                 return
             }
-            // Slå alle film op på én gang i stedet for én ad gangen.
-            let titles = try await movieDataService.titles(withIDs: recommendations.map(\.movieID))
+            // Slå alle film op på én gang i stedet for én ad gangen – også dem, anbefalingerne kommer fra.
+            var ids = recommendations.map(\.movieID)
+            ids += Set(recommendations.compactMap(\.becauseMovieID)).subtracting(ids).sorted()
+            let titles = try await movieDataService.titles(withIDs: ids)
             let titlesByID = Dictionary(titles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            candidates = recommendations.map { Item(recommendation: $0, title: titlesByID[$0.movieID]) }
+            candidates = recommendations.map {
+                Item(
+                    recommendation: $0,
+                    title: titlesByID[$0.movieID],
+                    becauseTitle: $0.becauseMovieID.flatMap { titlesByID[$0] }
+                )
+            }
             await showTopItems()
+        } catch is CancellationError {
+            // Skærmen forsvandt, eller en nyere indlæsning overtog. Ikke en fejl for brugeren.
+            AppLog.shared.info("\(title): load cancelled")
         } catch {
             AppLog.shared.error("\(title): load failed", error)
             state = .failed(Self.message(for: error))
@@ -189,8 +227,10 @@ final class RecommendationsViewModel {
     }
 
     /// "Get recommendations": beregner nye anbefalinger og viser dem bagefter.
-    func recompute() async {
-        guard !isRecomputing else { return }
+    /// Returnerer `true`, hvis beregningen blev færdig.
+    @discardableResult
+    func recompute() async -> Bool {
+        guard !isRecomputing else { return false }
         isRecomputing = true
         errorMessage = nil
         defer { isRecomputing = false }
@@ -198,11 +238,18 @@ final class RecommendationsViewModel {
         do {
             try await recommendationService.requestRecompute()
             await load()
+            return true
+        } catch is CancellationError {
+            // Afbrudt: skærmen forsvandt (fx fanen blev skiftet), eller en nyere beregning overtog.
+            // Ingen fejlbesked – næste gang skærmen vises, regnes der igen.
+            AppLog.shared.info("\(title): recompute cancelled")
+            return false
         } catch {
             AppLog.shared.error("\(title): recompute failed", error)
             errorMessage = Self.message(for: error)
             // Første gang (ingen liste endnu): vis tom-skærmen med fejlen i stedet for en evig spinner.
             if case .loading = state { state = .empty }
+            return false
         }
     }
 
@@ -380,26 +427,26 @@ final class RecommendationsViewModel {
         loggedImpressions = []
     }
 
-    /// Henter plakat og streamingtjeneste til filmene samtidig. Film, der er slået op før, hentes fra cachen.
+    /// Henter plakat, streamingtjeneste og credits til filmene samtidig – også til de film, anbefalingerne
+    /// kommer fra (til begrundelsen). Film, der er slået op før, hentes fra cachen.
     private func attachMedia(to items: [Item]) async -> [Item] {
         let service = mediaService
-        let cache = mediaCache
-        let lookups: [Task<TitleMedia?, Never>?] = items.map { item in
-            guard let title = item.title, cache[title.id] == nil else { return nil }
-            return Task { await service.media(for: title) }
-        }
-        var withMedia = items
-        for index in withMedia.indices {
-            guard let title = withMedia[index].title else { continue }
-            if let lookup = lookups[index] {
-                let media = await lookup.value
-                mediaCache[title.id] = .some(media)
-                withMedia[index].media = media
-            } else {
-                withMedia[index].media = cache[title.id] ?? nil
+        var missing: [Int: Title] = [:]
+        for item in items {
+            for title in [item.title, item.becauseTitle].compactMap({ $0 }) where mediaCache[title.id] == nil {
+                missing[title.id] = title
             }
         }
-        return withMedia
+        let lookups = missing.map { id, title in (id, Task { await service.media(for: title) }) }
+        for (id, lookup) in lookups {
+            mediaCache[id] = .some(await lookup.value)
+        }
+        return items.map { item in
+            var withMedia = item
+            withMedia.media = item.title.flatMap { mediaCache[$0.id] ?? nil }
+            withMedia.becauseMedia = item.becauseTitle.flatMap { mediaCache[$0.id] ?? nil }
+            return withMedia
+        }
     }
 
     // MARK: - Hjælpere

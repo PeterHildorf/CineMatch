@@ -22,6 +22,10 @@ struct TasteView: View {
     /// Hvor langt kortet er trukket. Over `swipeThreshold` tæller det som et svar.
     @State private var dragOffset: CGSize = .zero
     private let swipeThreshold: CGFloat = 110
+    /// Vibration: tæller op ved hvert svar/undo, så `sensoryFeedback` kan reagere på det.
+    @State private var hapticTick = 0
+    /// Det svar, vibrationen skal passe til. `nil` = undo.
+    @State private var hapticVerdict: Verdict?
 
     var body: some View {
         Group {
@@ -45,6 +49,7 @@ struct TasteView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Undo", systemImage: "arrow.uturn.backward") {
+                    playHaptic(for: nil)
                     Task { await viewModel.undo() }
                 }
                 .disabled(!viewModel.canUndo)
@@ -81,6 +86,9 @@ struct TasteView: View {
 
             if let title = viewModel.current {
                 MovieCardView(title: title, posterURL: viewModel.posterURLs[title.id])
+                    // Plakatens eget format (2:3), så hele plakaten vises i stedet for et udsnit.
+                    .aspectRatio(2 / 3, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(alignment: .top) { swipeLabel }
                     .offset(dragOffset)
                     .rotationEffect(.degrees(Double(dragOffset.width) / 25))
@@ -106,6 +114,20 @@ struct TasteView: View {
         .animation(.spring(duration: 0.3), value: viewModel.current?.id)
         // Hent plakater, hver gang et nyt kort kommer frem.
         .task(id: viewModel.current?.id) { await viewModel.loadPosters() }
+        // Et lille klik, når kortet trækkes langt nok til at tælle (og når retningen skifter).
+        .sensoryFeedback(trigger: armedVerdict) { _, new in
+            new == nil ? nil : .impact(weight: .light, intensity: 0.7)
+        }
+        // Et svar eller undo: vibrationen passer til dommen.
+        .sensoryFeedback(trigger: hapticTick) { _, _ in Self.haptic(for: hapticVerdict) }
+        // Svaret kunne ikke gemmes.
+        .sensoryFeedback(trigger: viewModel.errorMessage) { _, new in new == nil ? nil : .error }
+        // Hent selve billederne til de næste kort i baggrunden, så de er klar, når brugeren swiper.
+        .onChange(of: viewModel.posterURLs, initial: true) { _, urls in
+            for title in viewModel.queue.prefix(TasteViewModel.posterPrefetchCount) {
+                PosterCache.shared.prefetch(urls[title.id])
+            }
+        }
     }
 
     // MARK: - Dele
@@ -152,6 +174,7 @@ struct TasteView: View {
 
     private var answerButtons: some View {
         VerdictButtons(isEnabled: viewModel.current != nil) { verdict in
+            playHaptic(for: verdict)
             Task { await viewModel.rate(verdict) }
         }
     }
@@ -189,6 +212,30 @@ struct TasteView: View {
             .padding(.top, 24)
     }
 
+    // MARK: - Vibration
+
+    /// Dommen, kortet lander på, hvis det slippes nu (over tærsklen). Skifter → klik.
+    private var armedVerdict: Verdict? {
+        verdict(for: dragOffset, threshold: swipeThreshold)
+    }
+
+    private func playHaptic(for verdict: Verdict?) {
+        hapticVerdict = verdict
+        hapticTick += 1
+    }
+
+    /// Fantastic føles som en lille fejring, Horrible som et tungt bump. Undo og "Haven't seen" er bløde.
+    private static func haptic(for verdict: Verdict?) -> SensoryFeedback {
+        switch verdict {
+        case .fantastic: .success
+        case .great: .impact(weight: .medium)
+        case .neutral: .impact(weight: .light)
+        case .bad: .impact(weight: .medium, intensity: 0.8)
+        case .horrible: .impact(weight: .heavy)
+        case .notSeen, nil: .impact(flexibility: .soft, intensity: 0.5)
+        }
+    }
+
     private var swipeGesture: some Gesture {
         DragGesture()
             .onChanged { dragOffset = $0.translation }
@@ -196,6 +243,7 @@ struct TasteView: View {
                 let verdict = verdict(for: value.translation, threshold: swipeThreshold)
                 withAnimation(.spring(duration: 0.3)) { dragOffset = .zero }
                 if let verdict {
+                    playHaptic(for: verdict)
                     Task { await viewModel.rate(verdict) }
                 }
             }

@@ -8,7 +8,8 @@ import Foundation
 /// Plakater og streamingtjenester fra TMDB (themoviedb.org). Streamingdata kommer fra JustWatch.
 ///
 /// - Filmen findes via `tmdbId`. Film fra modelfilen har ikke et endnu, så de søges frem på titel og år.
-/// - Ét kald pr. film: detaljer + "watch/providers" (`append_to_response`).
+/// - Ét kald pr. film: detaljer + "watch/providers", "credits" og "keywords" (`append_to_response`).
+///   Credits og keywords bruges til begrundelsen ("Director: …", "Themes: …").
 /// - Svar gemmes i hukommelsen, så samme film kun hentes én gang, mens appen kører.
 final class TMDBMediaService: TitleMediaService {
     /// Sender én HTTP-forespørgsel. Byttes ud med et falsk netværk i tests.
@@ -60,7 +61,7 @@ final class TMDBMediaService: TitleMediaService {
         guard let tmdbId = try await resolveID(for: title) else { return nil }
         let details: MovieDetails = try await get(
             "movie/\(tmdbId)",
-            query: ["append_to_response": "watch/providers", "language": "en-US"]
+            query: ["append_to_response": Self.appendToResponse, "language": "en-US"]
         )
         return media(from: details)
     }
@@ -85,6 +86,15 @@ final class TMDBMediaService: TitleMediaService {
         }?.id
     }
 
+    static let appendToResponse = "watch/providers,credits,keywords"
+    /// Så mange navne fra rollelisten bruges.
+    static let castCount = 10
+    /// TMDB-keywords, der ikke siger noget om filmens indhold.
+    static let ignoredKeywords: Set<String> = [
+        "duringcreditsstinger", "aftercreditsstinger", "woman director", "based on novel or book",
+        "based on comic", "sequel", "remake", "3d", "imax",
+    ]
+
     private func media(from details: MovieDetails) -> TitleMedia {
         let country = details.watchProviders?.results[region]
         let streaming = (country?.flatrate ?? [])
@@ -95,7 +105,14 @@ final class TMDBMediaService: TitleMediaService {
             posterURL: Self.imageURL(details.posterPath, size: "w500"),
             streaming: streaming,
             canRentOrBuy: !(country?.rent ?? []).isEmpty || !(country?.buy ?? []).isEmpty,
-            watchLink: country?.link.flatMap(URL.init(string:))
+            watchLink: country?.link.flatMap(URL.init(string:)),
+            directors: (details.credits?.crew ?? []).filter { $0.job == "Director" }.map(\.name),
+            cast: (details.credits?.cast ?? [])
+                .sorted { ($0.order ?? .max) < ($1.order ?? .max) }
+                .prefix(Self.castCount)
+                .map(\.name),
+            keywords: (details.keywords?.keywords ?? []).map(\.name).filter { !Self.ignoredKeywords.contains($0) },
+            overview: details.overview.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         )
     }
 
@@ -173,16 +190,46 @@ private nonisolated struct SearchResponse: Decodable {
     let results: [Result]
 }
 
-/// `GET /movie/{id}?append_to_response=watch/providers`
+/// `GET /movie/{id}?append_to_response=watch/providers,credits,keywords`
 private nonisolated struct MovieDetails: Decodable {
     let id: Int
     let posterPath: String?
+    let overview: String?
     let watchProviders: WatchProviders?
+    let credits: Credits?
+    let keywords: Keywords?
 
     nonisolated enum CodingKeys: String, CodingKey {
         case id
         case posterPath = "poster_path"
+        case overview
         case watchProviders = "watch/providers"
+        case credits
+        case keywords
+    }
+
+    nonisolated struct Credits: Decodable {
+        let cast: [CastMember]?
+        let crew: [CrewMember]?
+    }
+
+    nonisolated struct CastMember: Decodable {
+        let name: String
+        /// 0 = hovedrollen.
+        let order: Int?
+    }
+
+    nonisolated struct CrewMember: Decodable {
+        let name: String
+        let job: String?
+    }
+
+    nonisolated struct Keywords: Decodable {
+        let keywords: [Keyword]?
+    }
+
+    nonisolated struct Keyword: Decodable {
+        let name: String
     }
 
     nonisolated struct WatchProviders: Decodable {

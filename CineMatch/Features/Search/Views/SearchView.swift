@@ -91,7 +91,7 @@ struct SearchView: View {
                 .font(.subheadline)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(isSelected ? Color.accentColor : Color(.secondarySystemBackground))
+                .background(isSelected ? Theme.accent : Color(.secondarySystemBackground))
                 .foregroundStyle(isSelected ? .white : .primary)
                 .clipShape(.capsule)
         }

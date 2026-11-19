@@ -39,6 +39,7 @@ SOURCE_FILES = [
     "Core/Persistence/DailyPickStore.swift",
     "Features/Recommendations/ViewModels/RecommendationsViewModel.swift",
     "Core/Models/TitleMedia.swift",
+    "Core/Models/RecommendationReason.swift",
     "Core/Models/StreamingService.swift",
     "Core/Models/StreamingPreferences.swift",
     "Core/Services/Protocols/TitleMediaService.swift",

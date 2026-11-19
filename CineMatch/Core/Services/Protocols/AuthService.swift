@@ -24,6 +24,7 @@ enum SignUpResult: Equatable, Sendable {
 /// (Ligesom egne exception-klasser i Java.)
 enum AuthServiceError: Error, Equatable {
     case invalidCredentials     // forkert e-mail eller adgangskode
+    case invalidEmail           // Supabase kan ikke godkende e-mailens format
     case emailAlreadyInUse
     case weakPassword
     case emailNotConfirmed

@@ -59,7 +59,8 @@ struct MainTabView: View {
             movieDataService: container.swipe.movieDataService,
             tasteSignalService: container.swipe.signalService,
             mediaService: container.mediaService,
-            input: .likes
+            input: .likes,
+            order: { TasteViewModel.shuffledInBlocks($0) }
         )
         // Søgning gemmer i samme bunke som Swipe, så Today også ændrer sig af søgninger.
         searchViewModel = SearchViewModel(
@@ -161,7 +162,8 @@ struct MainTabView: View {
             }
             Tab("Search", systemImage: "magnifyingglass", value: .search) {
                 NavigationStack {
-                    SearchView(viewModel: searchViewModel)
+                    // Ny Search med rækker af plakater. Den gamle liste: `SearchView(viewModel: searchViewModel)`.
+                    SearchShelvesView(viewModel: searchViewModel)
                 }
             }
             Tab("Profile", systemImage: "person.crop.circle", value: .profile) {

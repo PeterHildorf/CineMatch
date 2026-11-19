@@ -76,7 +76,7 @@ private struct ServiceRow: View {
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isSelected ? Theme.accent : Color.secondary)
             }
             .contentShape(.rect)
         }
