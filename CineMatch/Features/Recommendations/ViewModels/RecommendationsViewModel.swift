@@ -254,6 +254,23 @@ final class RecommendationsViewModel {
         await showTopItems()
     }
 
+    /// "Start fresh" i Profile: brugerens svar er slettet, så de gamle anbefalinger skal væk.
+    /// Viser tom-skærmen ("Rate at least 5 …") uden fejl, indtil brugeren har bedømt nok igen.
+    func startOver() async {
+        generation += 1                 // et opslag, der kører nu, må ikke vise den gamle liste
+        await recommendationService.clearRecommendations()
+        candidates = []
+        dailyPickID = nil
+        listLimit = Self.shownCount
+        canShowMore = false
+        errorMessage = nil
+        filterNote = nil
+        isFiltering = false
+        setBatch(nil)
+        computedInput = []              // "beregnet ud fra ingen svar" → næste `refresh` regner først, når der er nye
+        state = .empty
+    }
+
     // MARK: - Visning
 
     private func loadPreferences() async {

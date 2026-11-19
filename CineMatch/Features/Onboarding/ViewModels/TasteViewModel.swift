@@ -7,9 +7,10 @@ import Foundation
 import Observation
 
 /// Brugeren går film igennem én ad gangen og giver hver en dom:
-/// Horrible (1) · Bad (2) · Great (3) · Fantastic (5) · Haven't seen (0). Se `Verdict`.
+/// Horrible (1) · Bad (2) · Neutral (3) · Great (4) · Fantastic (5). Se `Verdict`.
 ///
-/// Alle domme gemmes – også "Haven't seen", så filmen ikke kommer igen. Sete film bliver aldrig anbefalet.
+/// "Haven't seen" springer filmen over. Den gemmes, så filmen først kommer igen efter
+/// `Verdict.notSeenCooldown` – og så bagerst i bunken. Sete film bliver aldrig anbefalet.
 @Observable
 @MainActor
 final class TasteViewModel {
@@ -85,8 +86,10 @@ final class TasteViewModel {
             let titles = try await loadedTitles
             let saved = try await loadedSignals
             verdicts = Dictionary(saved.map { ($0.movieID, $0.verdict) }, uniquingKeysWith: { newest, _ in newest })
-            // Film, brugeren allerede har svaret på, vises ikke igen.
-            queue = titles.filter { verdicts[$0.id] == nil }
+            // Bedømte film vises ikke igen. Film sprunget over for længe siden kommer igen – efter de nye.
+            let hidden = saved.hiddenFromSwipe()
+            let visible = titles.filter { !hidden.contains($0.id) }
+            queue = visible.filter { verdicts[$0.id] == nil } + visible.filter { verdicts[$0.id] != nil }
             history = []
             historyTitles = [:]
             state = .loaded
@@ -101,7 +104,8 @@ final class TasteViewModel {
     func syncAnswers() async {
         guard state == .loaded, let saved = try? await tasteSignalService.allSignals() else { return }
         verdicts = Dictionary(saved.map { ($0.movieID, $0.verdict) }, uniquingKeysWith: { newest, _ in newest })
-        queue.removeAll { verdicts[$0.id] != nil }
+        let hidden = saved.hiddenFromSwipe()
+        queue.removeAll { hidden.contains($0.id) }
     }
 
     /// Henter plakaten til kortet, der vises nu, og de to næste, så de er klar, når brugeren swiper.

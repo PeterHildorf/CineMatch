@@ -8,7 +8,7 @@ import Supabase
 
 /// Det ENESTE sted, hvor services oprettes. Views og ViewModels får dem injiceret.
 ///
-/// Alle bedømmelser bruger samme skala (`Verdict`: 0/1/2/3/5). Pipelines:
+/// Alle bedømmelser bruger samme skala (`Verdict`: 0–5). Pipelines:
 /// - `swipe`: Swipe, Search og Today → Antons model. Film-id er Letterboxd-id.
 ///   Swipe og Search gemmer i samme bunke, så Today ændrer sig, uanset hvor brugeren bedømmer.
 /// - `stars`: Mikkels model (TMDB-id). Ikke i UI'et lige nu (Rate og Star picks er fjernet).
@@ -29,23 +29,31 @@ final class AppContainer {
     let swipe: ModelPipeline
     /// Plakater og streamingtjenester (TMDB).
     let mediaService: any TitleMediaService
-    /// Streamingtjenester og andre indstillinger.
-    let preferencesService: any PreferencesService
+    /// Streamingtjenester og andre indstillinger – pr. bruger (se `preferencesService(for:)`).
+    private let makePreferencesService: (String) -> any PreferencesService
     /// Launch-argumentet `-freshUser`: start som en helt ny testbruger hver gang (se `resetToFreshTestUser()`).
     var startsAsFreshTestUser = false
 
+    /// `makePreferencesService` giver hver bruger sine egne indstillinger.
+    /// Uden den deler alle brugere `preferencesService` (fint i previews og tests).
     init(
         authService: any AuthService,
         stars: ModelPipeline,
         swipe: ModelPipeline,
         mediaService: any TitleMediaService = MockTitleMediaService(),
-        preferencesService: any PreferencesService = MockPreferencesService()
+        preferencesService: any PreferencesService = MockPreferencesService(),
+        makePreferencesService: ((String) -> any PreferencesService)? = nil
     ) {
         self.authService = authService
         self.stars = stars
         self.swipe = swipe
         self.mediaService = mediaService
-        self.preferencesService = preferencesService
+        self.makePreferencesService = makePreferencesService ?? { _ in preferencesService }
+    }
+
+    /// Den indloggede brugers indstillinger. En ny bruger har ingen, så valget af tjenester vises først.
+    func preferencesService(for userID: String) -> any PreferencesService {
+        makePreferencesService(userID)
     }
 
     /// Rigtige services, hvis Secrets.plist og modelfilerne findes – ellers mocks.
@@ -72,7 +80,11 @@ final class AppContainer {
             stars: starPipeline(storage: Storage(client: client, pipeline: .stars)),
             swipe: antonPipeline(store: antonStore, storage: Storage(client: client, pipeline: .swipe)),
             mediaService: mediaService,
-            preferencesService: LocalPreferencesService()
+            // Supabase: valget følger brugeren. Uden Supabase: lokalt, men stadig pr. bruger.
+            makePreferencesService: { userID -> any PreferencesService in
+                if let client { return SupabasePreferencesService(client: client) }
+                return LocalPreferencesService(userID: userID)
+            }
         )
         container.startsAsFreshTestUser = ProcessInfo.processInfo.arguments.contains("-freshUser")
         return container
@@ -147,8 +159,9 @@ final class AppContainer {
             AppLog.shared.info("-freshUser: add TEST_USER_EMAIL and TEST_USER_PASSWORD to Secrets.plist – showing sign-in")
             return
         }
+        let session: UserSession
         do {
-            _ = try await authService.signIn(with: .email(address: testUser.email, password: testUser.password))
+            session = try await authService.signIn(with: .email(address: testUser.email, password: testUser.password))
         } catch {
             AppLog.shared.error("-freshUser: couldn't sign in as \(testUser.email)", error)
             return
@@ -160,10 +173,16 @@ final class AppContainer {
                 AppLog.shared.error("-freshUser: couldn't delete answers", error)
             }
         }
-        // Lokalt gemt: streamingtjenester og "Today's pick"/streak.
+        // Streamingtjenester, så valget vises først igen.
+        do {
+            try await preferencesService(for: session.userID).deleteStreamingPreferences()
+        } catch {
+            AppLog.shared.error("-freshUser: couldn't delete streaming services", error)
+        }
+        // Lokalt gemt: streamingtjenester (uden Supabase) og "Today's pick"/streak.
         let defaults = UserDefaults.standard
         for key in defaults.dictionaryRepresentation().keys
-        where key == "streamingPreferences" || key.hasPrefix("dailyPick.") {
+        where key.hasPrefix(LocalPreferencesService.keyPrefix) || key.hasPrefix("dailyPick.") {
             defaults.removeObject(forKey: key)
         }
         AppLog.shared.info("-freshUser: signed in as \(testUser.email) with no answers")

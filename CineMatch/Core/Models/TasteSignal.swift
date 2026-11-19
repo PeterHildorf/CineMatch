@@ -3,16 +3,19 @@
 //  CineMatch
 //
 
+import Foundation
+
 /// Brugerens dom over én film – modellernes input.
 /// Svarer til en række i Supabase-tabellen `taste_signals`.
 ///
-/// Alle bedømmelser bruger samme skala (`Verdict`): Haven't seen 0 · Horrible 1 · Bad 2 · Great 3 · Fantastic 5.
-/// "Haven't seen" gemmes også, så filmen ikke vises i Swipe igen. Den er IKKE modelinput og
-/// udelukker ikke filmen fra anbefalingerne (brugeren har jo ikke set den).
+/// Alle bedømmelser bruger samme skala (`Verdict`): Haven't seen 0 · Horrible 1 · Bad 2 · Neutral 3 · Great 4 · Fantastic 5.
+/// "Haven't seen" gemmes også, så filmen ikke vises i Swipe igen før efter `Verdict.notSeenCooldown`.
+/// Den er IKKE modelinput og udelukker ikke filmen fra anbefalingerne (brugeren har jo ikke set den).
 struct TasteSignal: Codable, Hashable, Sendable {
     /// Grov opdeling til Antons nuværende model (som kun tager likes) og kolonnen `signal` i Supabase.
     enum Kind: String, Codable, Sendable {
         case like
+        case neutral
         case dislike
         /// "Haven't seen".
         case unseen
@@ -30,20 +33,31 @@ struct TasteSignal: Codable, Hashable, Sendable {
     let movieID: Int
     let verdict: Verdict
     var source: Source = .onboarding
+    /// Hvornår svaret blev givet (`updated_at` i Supabase). `nil` = ukendt, regnes som lige nu.
+    var answeredAt: Date? = nil
 
-    /// Tallet, modellerne får (0, 1, 2, 3 eller 5).
+    /// Tallet, modellerne får (0–5).
     var score: Int { verdict.score }
 
     var kind: Kind {
         switch verdict {
         case .notSeen: .unseen
         case .horrible, .bad: .dislike
+        case .neutral: .neutral
         case .great, .fantastic: .like
         }
     }
 }
 
 extension Array where Element == TasteSignal {
+    /// Film i Swipe, der ikke skal vises nu: alle sete film og film sprunget over inden for `notSeenCooldown`.
+    func hiddenFromSwipe(now: Date = .now) -> Set<Int> {
+        Set(filter { signal in
+            guard signal.verdict == .notSeen else { return true }
+            return now.timeIntervalSince(signal.answeredAt ?? now) < Verdict.notSeenCooldown
+        }.map(\.movieID))
+    }
+
     /// Film, brugeren har set og bedømt (alt undtagen "Haven't seen"). De må aldrig anbefales.
     var seenMovieIDs: Set<Int> { Set(filter(\.verdict.isSeen).map(\.movieID)) }
 

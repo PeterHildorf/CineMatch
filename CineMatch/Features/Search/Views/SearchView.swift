@@ -54,6 +54,11 @@ struct SearchView: View {
                 List {
                     Section {
                         ForEach(viewModel.browseResults) { title in row(for: title) }
+                        if viewModel.browseResults.isEmpty {
+                            Text("You've rated all of these. Search to find more movies.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     } header: {
                         Text("Popular to get started · rate the ones you've seen")
                             .textCase(nil)

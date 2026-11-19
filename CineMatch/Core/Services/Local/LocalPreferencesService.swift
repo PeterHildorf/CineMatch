@@ -6,13 +6,18 @@
 import Foundation
 
 /// Gemmer indstillinger i `UserDefaults`, så de overlever, at appen lukkes.
-/// Midlertidig: følger telefonen, ikke brugeren. Erstattes af en Supabase-version.
+/// Én nøgle pr. bruger, så en ny bruger på samme telefon altid bliver spurgt om sine tjenester.
+/// Bruges kun, hvis Supabase ikke er sat op (ellers `SupabasePreferencesService`).
 final class LocalPreferencesService: PreferencesService {
-    private let defaults: UserDefaults
-    private let key = "streamingPreferences"
+    /// Alle nøgler starter sådan (bruges af `-freshUser` til at rydde op).
+    static let keyPrefix = "streamingPreferences"
 
-    init(defaults: UserDefaults = .standard) {
+    private let defaults: UserDefaults
+    private let key: String
+
+    init(userID: String, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        key = "\(Self.keyPrefix).\(userID)"
     }
 
     func streamingPreferences() async throws -> StreamingPreferences? {
@@ -22,5 +27,9 @@ final class LocalPreferencesService: PreferencesService {
 
     func saveStreamingPreferences(_ preferences: StreamingPreferences) async throws {
         defaults.set(try JSONEncoder().encode(preferences), forKey: key)
+    }
+
+    func deleteStreamingPreferences() async throws {
+        defaults.removeObject(forKey: key)
     }
 }

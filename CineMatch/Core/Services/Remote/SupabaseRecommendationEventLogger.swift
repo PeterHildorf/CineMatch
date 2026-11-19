@@ -96,7 +96,7 @@ final class SupabaseRecommendationEventLogger: RecommendationEventLogger {
         }
     }
 
-    /// `outcome` (liked/disliked) til målingerne fra 0004, `score` (1/2/3/5) fra 0005.
+    /// `outcome` (liked/disliked) til målingerne fra 0004, `score` (1–5) fra 0005/0006.
     nonisolated struct FeedbackRow: Encodable, Sendable {
         let batchID: UUID
         let movieID: Int

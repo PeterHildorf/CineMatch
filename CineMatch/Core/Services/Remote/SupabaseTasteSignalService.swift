@@ -8,7 +8,7 @@ import Supabase
 
 /// Gemmer brugerens svar i Supabase-tabellen `taste_signals`, så de følger brugeren og ikke telefonen.
 /// Én instans pr. pipeline: swipe, søgning og stjerner har hver deres svar (se migration 0004).
-/// Dommen gemmes som tal i `rating` (0/1/2/3/5, se migration 0005) og groft i `signal` (like/dislike/unseen).
+/// Dommen gemmes som tal i `rating` (0–5, se migration 0006) og groft i `signal` (like/neutral/dislike/unseen).
 final class SupabaseTasteSignalService: TasteSignalService {
     private let client: SupabaseClient
     private let pipeline: PipelineID
@@ -22,7 +22,7 @@ final class SupabaseTasteSignalService: TasteSignalService {
         do {
             let userID = try await currentUserID()
             let rows: [Row] = try await client.from(Row.table)
-                .select("movie_id, signal, rating, source")
+                .select("movie_id, signal, rating, source, updated_at")
                 .eq("user_id", value: userID)
                 .eq("pipeline", value: pipeline.rawValue)
                 .order("updated_at", ascending: false)   // nyeste først
@@ -42,7 +42,7 @@ final class SupabaseTasteSignalService: TasteSignalService {
                 pipeline: pipeline.rawValue,
                 movieID: signal.movieID,
                 signal: signal.kind.rawValue,
-                rating: Double(signal.score),   // skalaens tal: 0, 1, 2, 3 eller 5
+                rating: Double(signal.score),   // skalaens tal: 0–5
                 source: signal.source.rawValue
             )
             try await client.from(Row.table)
@@ -104,13 +104,19 @@ final class SupabaseTasteSignalService: TasteSignalService {
         } else {
             switch TasteSignal.Kind(rawValue: row.signal) {
             case .like: verdict = .great
+            case .neutral: verdict = .neutral
             case .dislike: verdict = .bad
             case .unseen: verdict = .notSeen
             case nil: verdict = nil
             }
         }
         guard let verdict else { return nil }
-        return TasteSignal(movieID: row.movieID, verdict: verdict, source: TasteSignal.Source(rawValue: row.source) ?? .onboarding)
+        return TasteSignal(
+            movieID: row.movieID,
+            verdict: verdict,
+            source: TasteSignal.Source(rawValue: row.source) ?? .onboarding,
+            answeredAt: row.updatedAt
+        )
     }
 
     /// Logger den rå fejl (brugeren ser kun en generel besked) og oversætter den.
@@ -131,9 +137,12 @@ final class SupabaseTasteSignalService: TasteSignalService {
         let signal: String
         let rating: Double?
         let source: String
+        /// Kun ved læsning. Sættes af databasen (trigger fra 0004) ved hver gemning.
+        var updatedAt: Date? = nil
 
         enum CodingKeys: String, CodingKey {
             case userID = "user_id", pipeline, movieID = "movie_id", signal, rating, source
+            case updatedAt = "updated_at"
         }
 
         // `rating` skrives altid (også som null), så en upsert kan fjerne gamle stjerner.

@@ -46,7 +46,7 @@ nonisolated struct RecommendationImpression: Hashable, Sendable {
 }
 
 /// Brugerens svar på "Seen it", groft. Den præcise dom (`Verdict`) logges ved siden af.
-/// Great/Fantastic = liked, Horrible/Bad = disliked – så målingerne fra 0004 virker uændret.
+/// Great/Fantastic = liked, Horrible/Bad/Neutral = disliked (ikke et hit) – så målingerne fra 0004 virker uændret.
 nonisolated enum RecommendationOutcome: String, Codable, Sendable {
     case seenLiked = "seen_liked"
     case seenDisliked = "seen_disliked"

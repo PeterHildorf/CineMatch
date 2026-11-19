@@ -90,6 +90,12 @@ final class DailyPickStore {
         return count
     }
 
+    /// "Start fresh": glemmer dagens pick, sprungne film og streaken.
+    func reset() {
+        stored = Stored()
+        defaults.removeObject(forKey: key)
+    }
+
     // MARK: - Hjælpere
 
     private func dayKey(_ date: Date) -> String {

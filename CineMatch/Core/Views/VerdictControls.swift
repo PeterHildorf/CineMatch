@@ -11,20 +11,21 @@ extension Verdict {
         case .notSeen: .gray
         case .horrible: .red
         case .bad: .orange
+        case .neutral: .yellow
         case .great: .green
         case .fantastic: .pink
         }
     }
 }
 
-/// De fem knapper under Swipe-kortet: fire domme på én række og "Haven't seen" under dem.
+/// Knapperne under Swipe-kortet: fem domme på én række og "Haven't seen" under dem.
 struct VerdictButtons: View {
     var isEnabled = true
     let onRate: (Verdict) -> Void
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(Verdict.seenOptions) { verdict in
                     Button { onRate(verdict) } label: {
                         VStack(spacing: 4) {
@@ -33,7 +34,7 @@ struct VerdictButtons: View {
                             Text(verdict.label)
                                 .font(.caption.weight(.semibold))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.8)
+                                .minimumScaleFactor(0.7)
                         }
                         .frame(maxWidth: .infinity, minHeight: 56)
                     }
@@ -55,7 +56,7 @@ struct VerdictButtons: View {
     }
 }
 
-/// "Seen it" → menu med de fire domme. Bruges på anbefalinger og i Search.
+/// "Seen it" → menu med de fem domme. Bruges på anbefalinger og i Search.
 struct VerdictMenu: View {
     /// Den nuværende dom (vises i knappen). `nil` = ingen endnu.
     var current: Verdict? = nil

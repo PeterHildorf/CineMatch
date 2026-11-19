@@ -22,4 +22,6 @@ protocol RecommendationService: Sendable {
     /// Hvilken model og hvilket input de seneste anbefalinger kom fra. `nil` = ingen endnu.
     /// Bruges til at måle præcisionen pr. modelversion.
     func latestBatch() async -> RecommendationBatch?
+    /// Glemmer de seneste anbefalinger ("Start fresh" i Profile). Bagefter er `latestRecommendations()` tom.
+    func clearRecommendations() async
 }

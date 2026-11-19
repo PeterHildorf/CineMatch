@@ -7,7 +7,7 @@
 ///
 /// Begge modeller får samme skala (`Verdict`). Forskellen er, hvad de kan bruge i dag:
 /// - Antons model tager kun en liste af likes, så kun Great og Fantastic tæller.
-/// - Mikkels model tager alle sete film med deres tal (1, 2, 3, 5).
+/// - Mikkels model tager alle sete film med deres tal (1–5).
 enum TasteInput: Equatable, Sendable {
     /// Antons model: Great/Fantastic.
     case likes

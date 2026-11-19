@@ -10,7 +10,8 @@ final class MockPreferencesService: PreferencesService {
     var saveError: Error?
     private(set) var saveCallCount = 0
 
-    init(stored: StreamingPreferences? = nil) {
+    // nonisolated: så den kan bruges som standardværdi i andre init (de køres uden for main actor).
+    nonisolated init(stored: StreamingPreferences? = nil) {
         self.stored = stored
     }
 
@@ -22,5 +23,9 @@ final class MockPreferencesService: PreferencesService {
         saveCallCount += 1
         if let saveError { throw saveError }
         stored = preferences
+    }
+
+    func deleteStreamingPreferences() async throws {
+        stored = nil
     }
 }

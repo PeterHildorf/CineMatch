@@ -18,7 +18,8 @@ final class MockTitleMediaService: TitleMediaService {
     /// Film-id'er i den rækkefølge, de blev spurgt om.
     private(set) var requestedIDs: [Int] = []
 
-    init(mediaByTitleID: [Int: TitleMedia] = [:]) {
+    // nonisolated: så den kan bruges som standardværdi i andre init (de køres uden for main actor).
+    nonisolated init(mediaByTitleID: [Int: TitleMedia] = [:]) {
         self.mediaByTitleID = mediaByTitleID
     }
 

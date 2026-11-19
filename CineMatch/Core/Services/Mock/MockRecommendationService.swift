@@ -60,4 +60,9 @@ final class MockRecommendationService: RecommendationService {
     func latestBatch() async -> RecommendationBatch? {
         batch
     }
+
+    func clearRecommendations() async {
+        stored = []
+        batch = nil
+    }
 }

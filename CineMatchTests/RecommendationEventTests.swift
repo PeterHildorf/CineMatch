@@ -150,7 +150,8 @@ struct SupabaseRowTests {
         #expect(try signal(#"{"movie_id": 1, "signal": "dislike", "rating": null, "source": "onboarding"}"#)?.verdict == .bad)
         // Gamle halve stjerner.
         #expect(try signal(#"{"movie_id": 1, "signal": "like", "rating": 4.5, "source": "onboarding"}"#)?.verdict == .fantastic)
-        #expect(try signal(#"{"movie_id": 1, "signal": "neutral", "rating": 2.5, "source": "onboarding"}"#)?.verdict == .bad)
+        #expect(try signal(#"{"movie_id": 1, "signal": "neutral", "rating": 2.5, "source": "onboarding"}"#)?.verdict == .neutral)
+        #expect(try signal(#"{"movie_id": 1, "signal": "dislike", "rating": 1.5, "source": "onboarding"}"#)?.verdict == .bad)
     }
 
     @Test func feedbackRowSendsScoreAndOutcome() throws {

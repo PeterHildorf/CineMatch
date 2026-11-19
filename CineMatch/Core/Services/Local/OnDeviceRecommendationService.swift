@@ -6,7 +6,7 @@
 /// Laver anbefalinger lokalt med Antons model (ingen server).
 /// Input: film bedømt Great eller Fantastic (Fantastic forrest). Alle sete film anbefales aldrig,
 /// men "Haven't seen" gør ikke – dem har brugeren jo ikke set.
-/// TODO: Når Antons nye model tager hele skalaen (0/1/2/3/5), sendes `signal.score` med i stedet.
+/// TODO: Når Antons nye model tager hele skalaen (0–5), sendes `signal.score` med i stedet.
 final class OnDeviceRecommendationService: RecommendationService {
     private let store: ModelStore
     private let tasteSignalService: any TasteSignalService
@@ -62,5 +62,10 @@ final class OnDeviceRecommendationService: RecommendationService {
 
     func latestBatch() async -> RecommendationBatch? {
         batch
+    }
+
+    func clearRecommendations() async {
+        latest = []
+        batch = nil
     }
 }

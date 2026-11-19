@@ -5,7 +5,7 @@
 
 /// Anbefalinger fra Mikkels model, regnet lokalt ud fra brugerens domme.
 ///
-/// - Input er alle sete film med deres tal fra skalaen: Horrible 1 · Bad 2 · Great 3 · Fantastic 5.
+/// - Input er alle sete film med deres tal fra skalaen: Horrible 1 · Bad 2 · Neutral 3 · Great 4 · Fantastic 5.
 /// - "Haven't seen" (0) er ikke input og udelukker ikke filmen fra anbefalingerne.
 /// - Alle sete film anbefales aldrig.
 /// - Modellen giver ingen forklaring, så begrundelsen er bare "Based on your ratings".
@@ -33,7 +33,7 @@ final class MFRecommendationService: RecommendationService {
             throw RecommendationServiceError.network
         }
 
-        // Én dom pr. film (den nyeste). Skalaens tal (1, 2, 3, 5) ligger inden for modellens ½–5.
+        // Én dom pr. film (den nyeste). Skalaens tal (1–5) ligger inden for modellens ½–5.
         var seen = Set<Int>()
         let ratings = signals.compactMap { signal -> MatrixFactorizationRecommender.Rating? in
             guard signal.verdict.isSeen, seen.insert(signal.movieID).inserted else { return nil }
@@ -82,5 +82,10 @@ final class MFRecommendationService: RecommendationService {
 
     func latestBatch() async -> RecommendationBatch? {
         batch
+    }
+
+    func clearRecommendations() async {
+        latest = []
+        batch = nil
     }
 }

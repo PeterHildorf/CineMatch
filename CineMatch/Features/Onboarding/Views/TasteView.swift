@@ -212,7 +212,7 @@ private struct SwipeGuide: View {
             row("arrow.right", .great, "Swipe right")
             row("arrow.left", .bad, "Swipe left")
             row("arrow.down", .horrible, "Swipe down")
-            Text("Don't know the movie? Tap \"Haven't seen\" below the card.")
+            Text("In between? Tap \"Neutral\". Don't know the movie? Tap \"Haven't seen\" to skip it for now.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

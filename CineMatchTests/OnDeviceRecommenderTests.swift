@@ -216,9 +216,12 @@ struct VerdictScaleTests {
         #expect(Verdict.notSeen.score == 0)
         #expect(Verdict.horrible.score == 1)
         #expect(Verdict.bad.score == 2)
-        #expect(Verdict.great.score == 3)
+        #expect(Verdict.neutral.score == 3)
+        #expect(Verdict.great.score == 4)
         #expect(Verdict.fantastic.score == 5)
-        #expect(Verdict.seenOptions == [.horrible, .bad, .great, .fantastic])
+        #expect(Verdict.seenOptions == [.horrible, .bad, .neutral, .great, .fantastic])
+        #expect(!Verdict.neutral.isPositive)
+        #expect(Verdict.neutral.isSeen)
     }
 
     @Test @MainActor func likesPutFantasticFirstThenNewest() {

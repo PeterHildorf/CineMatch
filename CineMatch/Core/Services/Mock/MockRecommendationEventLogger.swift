@@ -10,6 +10,9 @@ final class MockRecommendationEventLogger: RecommendationEventLogger {
     /// Ældste først.
     private(set) var events: [RecommendationEvent] = []
 
+    // nonisolated: så den kan bruges som standardværdi i andre init (de køres uden for main actor).
+    nonisolated init() {}
+
     func log(_ event: RecommendationEvent) {
         events.append(event)
     }

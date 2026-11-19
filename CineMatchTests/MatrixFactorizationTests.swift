@@ -182,7 +182,7 @@ struct MFServiceTests {
     }
 
     @Test func recommendsUnseenMoviesWithReason() async throws {
-        // Hele skalaen: Fantastic 5, Horrible 1, Great 3, Bad 2, Fantastic 5.
+        // Hele skalaen: Fantastic 5, Horrible 1, Great 4, Bad 2, Fantastic 5.
         let mixed: [(Int, Verdict)] = [(862, .fantastic), (8844, .horrible), (15602, .great), (31357, .bad), (11862, .fantastic)]
         let rated = mixed.map { $0.0 }
         let signals = MockTasteSignalService(signals: mixed.map { TasteSignal(movieID: $0.0, verdict: $0.1) })

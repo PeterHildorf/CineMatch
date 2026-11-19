@@ -37,10 +37,29 @@ struct StreamingServiceTests {
         let defaults = try #require(UserDefaults(suiteName: "test-\(UUID().uuidString)"))
         let saved = StreamingPreferences(services: [.netflix, .tv2Play], onlyMyServices: true)
 
-        #expect(try await LocalPreferencesService(defaults: defaults).streamingPreferences() == nil)
-        try await LocalPreferencesService(defaults: defaults).saveStreamingPreferences(saved)
+        #expect(try await LocalPreferencesService(userID: "a", defaults: defaults).streamingPreferences() == nil)
+        try await LocalPreferencesService(userID: "a", defaults: defaults).saveStreamingPreferences(saved)
 
-        #expect(try await LocalPreferencesService(defaults: defaults).streamingPreferences() == saved)
+        #expect(try await LocalPreferencesService(userID: "a", defaults: defaults).streamingPreferences() == saved)
+    }
+
+    /// En ny bruger på samme telefon skal selv vælge tjenester – ikke arve den forriges.
+    @Test func localPreferencesArePerUser() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "test-\(UUID().uuidString)"))
+        try await LocalPreferencesService(userID: "a", defaults: defaults)
+            .saveStreamingPreferences(StreamingPreferences(services: [.netflix]))
+
+        #expect(try await LocalPreferencesService(userID: "b", defaults: defaults).streamingPreferences() == nil)
+    }
+
+    /// `-freshUser` glemmer valget, så tjenesterne bliver spurgt om først igen.
+    @Test func deletedPreferencesNeedSetupAgain() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "test-\(UUID().uuidString)"))
+        let preferences = LocalPreferencesService(userID: "a", defaults: defaults)
+        try await preferences.saveStreamingPreferences(StreamingPreferences(services: [.netflix]))
+        try await preferences.deleteStreamingPreferences()
+
+        #expect(await StreamingServicesViewModel(preferencesService: preferences).needsSetup())
     }
 }
 

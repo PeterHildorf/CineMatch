@@ -6,7 +6,7 @@
 import Observation
 
 /// "Which services do you have?": brugeren vælger sine streamingtjenester.
-/// Vises første gang efter login og kan åbnes igen fra kontomenuen.
+/// Vises første gang efter login og kan åbnes igen fra Profile-fanen.
 @Observable
 @MainActor
 final class StreamingServicesViewModel {
@@ -24,7 +24,7 @@ final class StreamingServicesViewModel {
 
     var services: [StreamingService] { StreamingService.allCases }
     var selectedCountText: String {
-        "\(selected.count) selected · you can change this later in the account menu"
+        "\(selected.count) selected · you can change this later in Profile"
     }
 
     /// True, hvis brugeren aldrig har valgt tjenester. Så skal valget vises.

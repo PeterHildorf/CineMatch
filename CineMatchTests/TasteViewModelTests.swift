@@ -3,6 +3,7 @@
 //  CineMatchTests
 //
 
+import Foundation
 import Testing
 @testable import CineMatch
 
@@ -24,14 +25,36 @@ struct TasteViewModelTests {
         #expect(viewModel.likeCount == 1)
     }
 
-    @Test func haventSeenFromEarlierIsNotShownAgain() async {
-        let signals = MockTasteSignalService(signals: [TasteSignal(movieID: 318, verdict: .notSeen)])
-        let viewModel = makeViewModel(signals)
+    @Test func recentlySkippedFilmIsNotShownAgain() async {
+        let skipped = TasteSignal(movieID: 318, verdict: .notSeen, answeredAt: .now.addingTimeInterval(-24 * 60 * 60))
+        let viewModel = makeViewModel(MockTasteSignalService(signals: [skipped]))
 
         await viewModel.load()
 
         #expect(viewModel.current?.id == 2571)
+        #expect(!viewModel.queue.contains { $0.id == 318 })
         #expect(viewModel.seenCount == 0)
+    }
+
+    @Test func filmSkippedLongAgoComesBackLast() async {
+        let longAgo = Date.now.addingTimeInterval(-Verdict.notSeenCooldown - 60)
+        let skipped = TasteSignal(movieID: 318, verdict: .notSeen, answeredAt: longAgo)
+        let viewModel = makeViewModel(MockTasteSignalService(signals: [skipped]))
+
+        await viewModel.load()
+
+        #expect(viewModel.current?.id == 2571, "Nye film først")
+        #expect(viewModel.queue.last?.id == 318, "Shawshank kommer igen – bagerst")
+    }
+
+    @Test func ratedFilmNeverComesBack() async {
+        let longAgo = Date.now.addingTimeInterval(-Verdict.notSeenCooldown * 10)
+        let rated = TasteSignal(movieID: 318, verdict: .neutral, answeredAt: longAgo)
+        let viewModel = makeViewModel(MockTasteSignalService(signals: [rated]))
+
+        await viewModel.load()
+
+        #expect(!viewModel.queue.contains { $0.id == 318 })
     }
 
     @Test func loadFailureShowsError() async {
@@ -55,15 +78,15 @@ struct TasteViewModelTests {
 
         await viewModel.rate(.horrible)    // Shawshank
         await viewModel.rate(.bad)         // The Matrix
-        await viewModel.rate(.great)       // Toy Story
-        await viewModel.rate(.fantastic)   // Groundhog Day
-        await viewModel.rate(.notSeen)     // The Shining
+        await viewModel.rate(.neutral)     // Toy Story
+        await viewModel.rate(.great)       // Groundhog Day
+        await viewModel.rate(.fantastic)   // The Shining
 
         let scores = Dictionary(uniqueKeysWithValues: signals.signals.map { ($0.movieID, $0.score) })
-        #expect(scores == [318: 1, 2571: 2, 1: 3, 1265: 5, 1258: 0])
-        #expect(signals.kindByMovieID == [318: .dislike, 2571: .dislike, 1: .like, 1265: .like, 1258: .unseen])
-        #expect(viewModel.likeCount == 2)
-        #expect(viewModel.seenCount == 4)
+        #expect(scores == [318: 1, 2571: 2, 1: 3, 1265: 4, 1258: 5])
+        #expect(signals.kindByMovieID == [318: .dislike, 2571: .dislike, 1: .neutral, 1265: .like, 1258: .like])
+        #expect(viewModel.likeCount == 2, "Neutral er ikke et like")
+        #expect(viewModel.seenCount == 5)
         #expect(viewModel.current == nil)
     }
 
@@ -79,6 +102,18 @@ struct TasteViewModelTests {
         #expect(viewModel.likeCount == 0)
         #expect(signals.signals.isEmpty)
         #expect(!viewModel.canUndo)
+    }
+
+    @Test func haventSeenIsSavedAsZero() async {
+        let signals = MockTasteSignalService()
+        let viewModel = makeViewModel(signals)
+        await viewModel.load()
+
+        await viewModel.rate(.notSeen)
+
+        #expect(signals.signals.map(\.score) == [0])
+        #expect(signals.kindByMovieID == [318: .unseen])
+        #expect(viewModel.current?.id == 2571)
     }
 
     @Test func undoAlsoWorksForHaventSeen() async {
@@ -116,8 +151,9 @@ struct TasteViewModelTests {
 
         for _ in 0..<4 { await viewModel.rate(.great) }
         await viewModel.rate(.bad)
+        await viewModel.rate(.neutral)
         await viewModel.rate(.notSeen)
-        #expect(!viewModel.hasEnoughLikes, "Bad og Haven't seen tæller ikke")
+        #expect(!viewModel.hasEnoughLikes, "Bad, Neutral og Haven't seen tæller ikke")
 
         await viewModel.rate(.fantastic)
         #expect(viewModel.hasEnoughLikes)

@@ -9,7 +9,7 @@ import SwiftUI
 ///
 /// Første gang: streamingtjenester → Swipe med en kort guide. Efter 10 film (og 5 Great/Fantastic)
 /// kommer "Your picks are ready" → Today, hvor de første anbefalinger regnes.
-/// Derefter (og ved alle senere åbninger) direkte til fanerne: Today · Swipe · Search.
+/// Derefter (og ved alle senere åbninger) direkte til fanerne: Today · Swipe · Search · Profile.
 ///
 /// Swipe og Search gemmer i samme bunke, så Today ændrer sig, hver gang brugeren bedømmer en film.
 struct MainTabView: View {
@@ -21,7 +21,7 @@ struct MainTabView: View {
     }
 
     enum AppTab: Hashable {
-        case today, swipe, search
+        case today, swipe, search, profile
     }
 
     let session: UserSession
@@ -34,7 +34,7 @@ struct MainTabView: View {
     @State private var searchViewModel: SearchViewModel
     @State private var todayViewModel: RecommendationsViewModel
     @State private var servicesViewModel: StreamingServicesViewModel
-    @State private var isShowingServices: Bool
+    @State private var profileViewModel: ProfileViewModel
     /// "Your picks are ready" efter 10 film i onboarding.
     @State private var isShowingPicksReady: Bool
     /// Så popuppen kun kommer én gang, også hvis brugeren vælger "Keep swiping".
@@ -46,10 +46,12 @@ struct MainTabView: View {
         self.onSignOut = onSignOut
         step = .checking
         selectedTab = .today
-        isShowingServices = false
         isShowingPicksReady = false
         hasOfferedPicks = false
         swipeSignals = container.swipe.signalService
+        let preferencesService = container.preferencesService(for: session.userID)
+        // Delt mellem Today og Profile, så "Start fresh" også nulstiller dagens pick og streak.
+        let dailyPicks = DailyPickStore(key: "dailyPick.swipe.\(session.userID)")
         tasteViewModel = TasteViewModel(
             movieDataService: container.swipe.movieDataService,
             tasteSignalService: container.swipe.signalService,
@@ -67,15 +69,21 @@ struct MainTabView: View {
             recommendationService: container.swipe.recommendationService,
             movieDataService: container.swipe.movieDataService,
             mediaService: container.mediaService,
-            preferencesService: container.preferencesService,
+            preferencesService: preferencesService,
             signalService: container.swipe.signalService,
             eventLogger: container.swipe.eventLogger,
-            dailyPicks: DailyPickStore(key: "dailyPick.swipe.\(session.userID)"),
+            dailyPicks: dailyPicks,
             autoRecompute: true,
             input: .likes,
             title: "Recommendations"
         )
-        servicesViewModel = StreamingServicesViewModel(preferencesService: container.preferencesService)
+        servicesViewModel = StreamingServicesViewModel(preferencesService: preferencesService)
+        // "Start fresh" sletter begge bunker (stjernemodellen er ikke i UI'et, men skal heller ikke huske noget).
+        profileViewModel = ProfileViewModel(
+            email: session.email,
+            signalServices: [container.swipe.signalService, container.stars.signalService],
+            dailyPicks: dailyPicks
+        )
     }
 
     var body: some View {
@@ -115,9 +123,6 @@ struct MainTabView: View {
             }
         }
         .animation(.default, value: step)
-        .sheet(isPresented: $isShowingServices) {
-            StreamingServicesView(viewModel: servicesViewModel) { servicesChanged() }
-        }
     }
 
     private var tabs: some View {
@@ -129,6 +134,7 @@ struct MainTabView: View {
                     case .today: await todayViewModel.refresh()
                     case .swipe: await tasteViewModel.syncAnswers()
                     case .search: await searchViewModel.loadVerdicts()
+                    case .profile: await profileViewModel.load()
                     }
                 }
             }
@@ -136,7 +142,6 @@ struct MainTabView: View {
 
     private var tabView: some View {
         TabView(selection: $selectedTab) {
-            // Ingen overskrift eller kontomenu her: fanen viser navnet, og menuen findes i Swipe og Search.
             Tab("Recommendations", systemImage: "sparkles", value: .today) {
                 NavigationStack {
                     TodayView(
@@ -149,13 +154,24 @@ struct MainTabView: View {
             Tab("Swipe", systemImage: "rectangle.stack", value: .swipe) {
                 NavigationStack {
                     TasteView(viewModel: tasteViewModel)
-                        .toolbar { accountMenu }
                 }
             }
             Tab("Search", systemImage: "magnifyingglass", value: .search) {
                 NavigationStack {
                     SearchView(viewModel: searchViewModel)
-                        .toolbar { accountMenu }
+                }
+            }
+            Tab("Profile", systemImage: "person.crop.circle", value: .profile) {
+                NavigationStack {
+                    ProfileView(
+                        viewModel: profileViewModel,
+                        servicesViewModel: servicesViewModel,
+                        onServicesChanged: servicesChanged,
+                        onStartedFresh: startedFresh,
+                        onSwipe: { selectedTab = .swipe },
+                        onSearch: { selectedTab = .search },
+                        onSignOut: onSignOut
+                    )
                 }
             }
         }
@@ -188,19 +204,11 @@ struct MainTabView: View {
         }
     }
 
-    /// Lille menu med e-mail, streamingtjenester og "Sign out" – samme i alle faner.
-    private var accountMenu: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Menu("Account", systemImage: "person.crop.circle") {
-                if let email = session.email {
-                    Text(email)
-                }
-                Button("My streaming services", systemImage: "play.tv") {
-                    isShowingServices = true
-                }
-                Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive, action: onSignOut)
-            }
-        }
+    /// "Start fresh" i Profile: alle faner glemmer de gamle domme og anbefalinger.
+    private func startedFresh() async {
+        await todayViewModel.startOver()
+        await tasteViewModel.load()
+        await searchViewModel.loadVerdicts()
     }
 }
 
